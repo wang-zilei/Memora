@@ -133,11 +133,11 @@ h:\llm-chat-knowledge-base\
 
 | 文件 | 职责 |
 |------|------|
-| `App.tsx` | 路由与页面布局 |
+| `App.tsx` | 路由与页面布局（含卡片列表/详情页/收藏/统计/设置） |
 | `Logo.tsx` | LogoIcon / LogoWordmark SVG + NavIcon 字体图标组件 |
-| `index.css` | 全局样式（侧边栏/卡片/页面布局） |
+| `index.css` | 全局样式（侧边栏/卡片/详情页布局） |
 | `api.ts` | 对后端 API 的 fetch 封装 |
-| `types.ts` | Card、Topic、Settings 等类型定义 |
+| `types.ts` | Card、ReviewSchedule、Statistics 等类型定义 |
 
 ## 四、技术栈
 
@@ -204,3 +204,4 @@ cards_fts                FTS5 全文搜索虚拟表
 | 2026-05-24 | topic-split 输入从纯 User 序列改为完整对话对（Turn pairs），数据清洗 spec 输出 B 同步更新，同步修改 architecture.md 文件层级说明 |
 | 2026-05-24 | content-creation / text-processing 移除 full_output 字段，改为在 narrative 中要求输出"产出内容概览" |
 | 2026-05-25 | 侧边栏视觉优化：Logo 放大（56×56 + Wordmark 32px）、emoji 替换为 Material Symbols 字体图标、底部用户与设置按钮同行排列。新增 `Logo.tsx` 组件 |
+| 2026-05-25 | 卡片详情页全面重构：Tab 式布局（概览/原始对话）、可编辑标题（STZhongsong 28px/900/letter-spacing 2px）、三点菜单（收藏/删除）、去 emoji 消息标签 |

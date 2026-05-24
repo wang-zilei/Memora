@@ -239,3 +239,16 @@
 - 导航栏图标和文字放大 1.15 倍，间距加宽
 - 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`
+
+## 2026-05-25 — 卡片详情页全面重构（从头构建）
+
+**主题：** 点击卡片后的详情页从头构建，Tab 式布局 + 干净排版
+**关键变更：**
+- **Header**：纯图标返回箭头（arrow_back）+ 可编辑标题（点击 edit 图标进入编辑模式）+ 三点菜单（more_vert，弹出收藏/删除）
+- **Tab 栏**：概览 / 原始对话，激活态蓝色底线指示器
+- **概览 Tab**：核心问题（15px STZhongsong 加粗）+ 关键结论（华文中宋正文，行高 1.8）+ 标签行（仅 pill 文字）+ 来源（模型平台斜体 + 日期）+ 回到原始对话按钮
+- **原始对话 Tab**：去掉 emoji，用户消息标签为"用户"，AI 消息标签为平台名称（ChatGPT/Claude/DeepSeek 等）
+- **标题样式**：STZhongsong 28px / 900 字重 / letter-spacing 2px
+- **视觉**：卡片 #fefefe 背景 + subtle box-shadow 区分页面底色
+- 三点菜单收藏/删除复用现有 `updateCard()` API（PUT /cards/:id 传 `{starred: true/false}` 或 `{title: newValue}`）
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`

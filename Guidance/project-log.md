@@ -187,3 +187,9 @@
 - 导航栏图标和文字放大 1.15 倍，间距加宽
 - 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`
+
+## 2026-05-25 — 卡片详情页全面重构
+
+**主题：** 详情页从头构建，Tab 式布局 + 可编辑标题 + 三点菜单
+**关键结论：** 废弃原有混乱布局，新增概览/原始对话 Tab，标题可编辑（STZhongsong 28px/900/letter-spacing 2px），收藏/删除复用 updateCard API
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
