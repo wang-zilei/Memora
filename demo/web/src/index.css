@@ -541,11 +541,21 @@ body {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
 }
 
-.detail-card .detail-title {
-  font-family: 'STZhongsong', '华文中宋', 'Noto Serif SC', serif;
-  font-size: 28px;
+/* 详情页标题（在 header 区域，不在 .detail-card 内） */
+.card-detail .detail-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 24px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 0.5px;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.detail-card .detail-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
   color: #1a1a1a;
   line-height: 1.3;
 }

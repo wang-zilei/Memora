@@ -188,6 +188,14 @@
 - 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`
 
+## 2026-05-25 — 详情页标题字号微调 + 字体改为系统字体
+
+**主题：** 详情页标题从华文中宋 28px/letter-spacing 2px → 系统字体 24px/letter-spacing 0.5px
+**关键变更：**
+- `.card-detail .detail-title` + `.detail-card .detail-title`：font-family 改为列表页系统字体栈，字号降 1 档
+- 核心问题和关键结论（`.detail-section .section-title`）保持华文中宋不变
+**产出文件：** `demo/web/src/index.css`
+
 ## 2026-05-25 — 卡片详情页全面重构
 
 **主题：** 详情页从头构建，Tab 式布局 + 可编辑标题 + 三点菜单
