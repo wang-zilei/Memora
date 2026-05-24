@@ -494,7 +494,7 @@ body {
   display: flex;
   align-items: center;
   font-size: 11px;
-  margin-top: auto;
+  margin-top: 16px;
 }
 
 .card-item .card-date {
