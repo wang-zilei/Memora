@@ -682,6 +682,10 @@ function CardDetail({ cardId, onBack }: {
   const [loading, setLoading] = useState(true)
   const [showRawMessages, setShowRawMessages] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'conversation'>('overview')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
 
   useEffect(() => {
     loadCard()
@@ -721,116 +725,220 @@ function CardDetail({ cardId, onBack }: {
     }
   }
 
+  const handleToggleFavorite = async () => {
+    if (!card) return
+    try {
+      await updateCard(cardId, { starred: !card.starred })
+      setCard({ ...card, starred: !card.starred })
+      setShowDropdown(false)
+    } catch (e) {
+      console.error('Failed to toggle favorite:', e)
+    }
+  }
+
+  const handleStartEditTitle = () => {
+    setEditTitleValue(card?.title || '')
+    setEditingTitle(true)
+  }
+
+  const handleSaveTitle = async () => {
+    if (!editTitleValue.trim()) return
+    try {
+      await updateCard(cardId, { title: editTitleValue.trim() })
+      setCard(prev => prev ? { ...prev, title: editTitleValue.trim() } : prev)
+      setEditingTitle(false)
+    } catch (e) {
+      alert('更新标题失败: ' + (e as Error).message)
+    }
+  }
+
+  const handleCancelEditTitle = () => {
+    setEditingTitle(false)
+    setEditTitleValue('')
+  }
+
   if (loading) return <div className="loading">加载中...</div>
   if (!card) return <div className="empty-state"><h3>卡片不存在</h3></div>
 
+  const platformName = PLATFORM_NAMES[card.source?.platform] || card.source?.platform
+
   return (
     <div className="card-detail">
-      <button className="back-btn" onClick={onBack}>← 返回列表</button>
-
-      <div className="detail-card">
-        {/* 总结失败提示 */}
-        {card.summarize_error && (
-          <div style={{
-            padding: '12px 16px',
-            background: '#fff3e0',
-            border: '1px solid #ffcc80',
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 13,
-            color: '#e65100',
-          }}>
-            ⚠️ AI 总结失败：{card.summarize_error}
-            <br />
-            请检查设置中的 API Key 是否正确、额度是否充足，然后点击「重新总结」重试。
-          </div>
-        )}
-
-        {/* 标题和操作 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="tag" style={{ background: '#667eea', color: '#fff', fontWeight: 600, fontSize: 12, padding: '3px 10px', borderRadius: 12 }}>
-              {card.card_type}
-            </span>
+      {/* Header: back icon + title + actions */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+          <button className="icon-btn" onClick={onBack}>
+            <span className="material-symbols-rounded">arrow_back</span>
+          </button>
+          {editingTitle ? (
+            <input
+              className="title-edit-input"
+              value={editTitleValue}
+              onChange={e => setEditTitleValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleSaveTitle()
+                if (e.key === 'Escape') handleCancelEditTitle()
+              }}
+              autoFocus
+            />
+          ) : (
             <div className="detail-title">{card.title}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button className="back-btn" onClick={handleResummarize} disabled={summarizing}>
-              {summarizing ? '总结中...' : '🔄 重新总结'}
-            </button>
-            <button className="delete-btn" onClick={handleDelete}>删除</button>
-          </div>
-        </div>
-
-        {/* 核心问题 */}
-        {card.original_question && (
-          <div className="detail-section">
-            <div className="section-label">核心问题</div>
-            <div className="section-content">{card.original_question}</div>
-          </div>
-        )}
-
-        {/* 卡片叙事 */}
-        {card.narrative && (
-          <div className="detail-section">
-            <div className="section-label">卡片叙事</div>
-            <div className="section-content" style={{ lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{card.narrative}</div>
-          </div>
-        )}
-
-        {/* 标签 */}
-        {card.tags?.length > 0 && (
-          <div className="detail-section">
-            <div className="section-label">标签</div>
-            <div className="detail-tags">
-              {card.tags.map((tag, i) => (
-                <span key={i} className="detail-tag">{tag}</span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 来源信息 */}
-        <div className="detail-section">
-          <div className="section-label">来源</div>
-          <div className="section-content" style={{ fontSize: 13, color: '#666' }}>
-            <span
-              className="platform-badge"
-              style={{ background: PLATFORM_COLORS[card.source?.platform] || '#999', marginRight: 8 }}
-            >
-              {PLATFORM_NAMES[card.source?.platform] || card.source?.platform}
-            </span>
-            {card.source?.captured_at && new Date(card.source.captured_at).toLocaleString('zh-CN')}
-            <span style={{ margin: '0 8px' }}>·</span>
-          </div>
-          {card.source?.url && (
-            <a className="source-link" href={card.source.url} target="_blank" rel="noopener noreferrer">
-              🔗 回到原始对话
-            </a>
           )}
         </div>
-
-        {/* 对话记录 */}
-        <div className="messages-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div className="section-label" style={{ margin: 0 }}>对话记录</div>
-            <button className="back-btn" onClick={() => setShowRawMessages(!showRawMessages)}>
-              {showRawMessages ? '查看清洗版' : '查看原始版'}
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          {!editingTitle && (
+            <button className="icon-btn" onClick={handleStartEditTitle}>
+              <span className="material-symbols-rounded">edit</span>
             </button>
-          </div>
-          {(showRawMessages ? card.rawMessages : card.cleanMessages)?.map((msg, i) => (
-            <div key={i} style={{
-              marginBottom: 8,
-              padding: '8px 12px',
-              borderRadius: 6,
-              background: msg.role === 'user' ? '#f8f9ff' : '#fafafa',
-              borderLeft: msg.role === 'user' ? '3px solid #667eea' : '3px solid #43a047',
-            }}>
-              <div className="msg-label">{msg.role === 'user' ? '👤 用户' : '🤖 AI'}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+          )}
+          {editingTitle ? (
+            <div className="title-edit-actions">
+              <button className="save-title-btn" onClick={handleSaveTitle}>保存</button>
+              <button className="cancel-title-btn" onClick={handleCancelEditTitle}>取消</button>
             </div>
-          ))}
+          ) : (
+            <div className="dropdown-wrapper">
+              <button className="icon-btn" onClick={() => setShowDropdown(!showDropdown)}>
+                <span className="material-symbols-rounded">more_vert</span>
+              </button>
+              {showDropdown && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    onClick={() => setShowDropdown(false)}
+                  />
+                  <div className="dropdown-menu">
+                    <button className="dropdown-item" onClick={handleToggleFavorite}>
+                      <span className="material-symbols-rounded">{card.starred ? 'star' : 'star_border'}</span>
+                      {card.starred ? '取消收藏' : '收藏'}
+                    </button>
+                    <button className="dropdown-item danger" onClick={() => { setShowDropdown(false); handleDelete(); }}>
+                      <span className="material-symbols-rounded">delete</span>
+                      删除
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* 总结失败提示 */}
+      {card.summarize_error && (
+        <div style={{
+          padding: '12px 16px',
+          background: '#fff3e0',
+          border: '1px solid #ffcc80',
+          borderRadius: 8,
+          marginBottom: 16,
+          fontSize: 13,
+          color: '#e65100',
+        }}>
+          ⚠️ AI 总结失败：{card.summarize_error}
+          <br />
+          请检查设置中的 API Key 是否正确、额度是否充足，然后点击「重新总结」重试。
+          <button
+            className="back-btn"
+            style={{ marginLeft: 8 }}
+            onClick={handleResummarize}
+            disabled={summarizing}
+          >
+            {summarizing ? '总结中...' : '重新总结'}
+          </button>
+        </div>
+      )}
+
+      <div className="detail-card" style={{ padding: 24 }}>
+        {/* Tab 栏 */}
+        <div className="detail-tabs">
+          <button
+            className={`detail-tab ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            概览
+          </button>
+          <button
+            className={`detail-tab ${activeTab === 'conversation' ? 'active' : ''}`}
+            onClick={() => setActiveTab('conversation')}
+          >
+            原始对话
+          </button>
+        </div>
+
+        {activeTab === 'overview' && (
+          <>
+            {/* 核心问题 */}
+            {card.original_question && (
+              <div className="detail-section">
+                <div className="section-title">核心问题</div>
+                <div className="section-text">{card.original_question}</div>
+              </div>
+            )}
+
+            {/* 卡片叙事 */}
+            {card.narrative && (
+              <div className="detail-section">
+                <div className="section-title">关键结论</div>
+                <div className="section-text">{card.narrative}</div>
+              </div>
+            )}
+
+            <hr className="overview-divider" />
+
+            {/* 标签 */}
+            {card.tags?.length > 0 && (
+              <div className="detail-section">
+                <div className="detail-tags">
+                  {card.tags.map((tag, i) => (
+                    <span key={i} className="detail-tag">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 来源行 */}
+            <div className="detail-section" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#666' }}>
+              <span style={{ fontFamily: "'Times New Roman', Times, serif", fontStyle: 'italic' }}>
+                {platformName}
+              </span>
+              {card.source?.captured_at && (
+                <span>{new Date(card.source.captured_at).toLocaleString('zh-CN')}</span>
+              )}
+            </div>
+
+            {/* 回到原始对话 */}
+            {card.source?.url && (
+              <a className="play-link" href={card.source.url} target="_blank" rel="noopener noreferrer">
+                <span className="material-symbols-rounded">link</span>
+                回到原始对话
+              </a>
+            )}
+          </>
+        )}
+
+        {activeTab === 'conversation' && (
+          <div className="messages-section">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div className="section-label" style={{ margin: 0 }}>对话记录</div>
+              <button className="back-btn" onClick={() => setShowRawMessages(!showRawMessages)}>
+                {showRawMessages ? '查看清洗版' : '查看原始版'}
+              </button>
+            </div>
+            {(showRawMessages ? card.rawMessages : card.cleanMessages)?.map((msg, i) => (
+              <div key={i} className={`message-pair ${msg.role === 'user' ? 'msg-user' : 'msg-assistant'}`} style={{
+                marginBottom: 8,
+                padding: '8px 12px',
+                borderRadius: 6,
+                background: msg.role === 'user' ? '#f8f9ff' : '#fafafa',
+                borderLeft: msg.role === 'user' ? '3px solid #667eea' : '3px solid #43a047',
+              }}>
+                <div className="msg-label">{msg.role === 'user' ? '用户' : platformName}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
