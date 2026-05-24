@@ -33,6 +33,7 @@ export interface KnowledgeCardSummary {
   original_question: string;
   card_type: CardType;            // 意图大类
   tags: string[];                 // parent/child 层级标签
+  narrative: string;              // 卡片叙事（列表页摘要用）
   source: {
     platform: string;
     url?: string;

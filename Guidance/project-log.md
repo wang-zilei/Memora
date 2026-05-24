@@ -171,13 +171,19 @@
 **主题：** 使用 frontend-design skill 全面重新设计前端 UI
 **关键结论：** 上次设计未调用 frontend-design skill，视觉效果不佳，本次正式使用该 skill 指导设计
 
-## 2026-05-25 — 侧边栏视觉优化（纯视觉）
+## 2026-05-25 — 卡片列表页全面重构
 
-**主题：** 侧边栏观感优化，不改交互
-**关键结论：**
-- 黑底改灰底分层色调，Logo 图标放大至 56×56px + Wordmark SVG 32px
-- emoji 全部替换为 Google Material Symbols Rounded 字体图标
-- 底部用户与设置按钮改同行排列
-- 头脑风暴图标历经 bulb→sparks→auto_awesome 三次调试，最终可用
-- "其他"图标从 more_vert 改为 folder_open，释放三点图标给卡片操作
-**产出文件：** `demo/web/src/Logo.tsx`、`demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/index.html`、`Guidance/PROGRESS.md`
+**主题：** 列表卡片布局从"问题预览+平台在顶部"改为"narrative 预览+更多菜单+标签截断"的新设计
+**关键变更：**
+- 标题右侧增加「⋮」更多按钮，弹出菜单（收藏/删除），点击外部自动关闭
+- 正文预览从 original_question 改为 narrative 摘要（取前 120 字，优先在标点处截断）
+- 标签行第一个是意图分类，其余是自定义标签；溢出标签自动隐藏（flex nowrap + overflow hidden）
+- 每个 tag 添加 display: inline-block 防止内部折行
+- 意图标签颜色从高饱和白字改为柔和 tint 方案（低饱和背景 + 深色文字），不抢标题
+- 底部仅保留日期，平台来源 badge 已移除；日期/平台 footer 用 margin-top: auto 贴在卡片底部
+- 日期格式：今天 HH:MM 或 x月x日，iOS 系统字体（SF Pro Display）
+- narrative 预览使用华文中宋（STZhongsong），英文自动回退 sans-serif
+- 侧边栏底色改为 #f5f5f5（与页面背景一致），卡片页面底色改为白色
+- 导航栏图标和文字放大 1.15 倍，间距加宽
+- 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`

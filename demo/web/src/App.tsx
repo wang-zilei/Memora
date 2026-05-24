@@ -1,11 +1,54 @@
 import { useState, useEffect } from 'react'
 import './index.css'
-import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics } from './api'
+import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
 import { LogoIcon, LogoWordmark, NavIcon } from './Logo'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
+
+// 意图标签颜色（柔和 tint 方案：低饱和背景 + 深色文字）
+const INTENT_COLORS: Record<string, string> = {
+  '概念理解': '#e8e8ff',
+  '事实查询': '#e0f4ff',
+  '技能学习': '#e0ffe8',
+  '操作指南': '#fff3e0',
+  '内容创作': '#ffe8f5',
+  '文本处理': '#ede8ff',
+  '规划决策': '#fff0e0',
+  '头脑风暴': '#fffde0',
+  '交互陪伴': '#e0fff8',
+  '其他': '#e8e8e8',
+}
+
+const INTENT_TEXT_COLORS: Record<string, string> = {
+  '概念理解': '#4f46e5',
+  '事实查询': '#0284c7',
+  '技能学习': '#059669',
+  '操作指南': '#d97706',
+  '内容创作': '#db2777',
+  '文本处理': '#6d28d9',
+  '规划决策': '#ea580c',
+  '头脑风暴': '#ca8a04',
+  '交互陪伴': '#0d9488',
+  '其他': '#4b5563',
+}
+
+// 标签行截断：一行能放多少个字
+// 卡片内宽约 288px，tag 11px 字体下约 13px/汉字 + 16px padding ≈ 29px
+// 意图 tag 约 4 字 ≈ 70px，剩余 ≈ 218px，约能放 7-8 个汉字宽度的自定义标签
+const TAG_CHAR_BUDGET = 30 // 自定义标签总字数预算（保守）
+
+function fitTags(tags: string[], budget: number = TAG_CHAR_BUDGET): string[] {
+  let count = 0
+  const result: string[] = []
+  for (const tag of tags) {
+    count += tag.length + 1 // +1 for gap margin
+    if (count > budget) break
+    result.push(tag)
+  }
+  return result
+}
 
 function App() {
   const [page, setPage] = useState<Page>('list')
@@ -208,6 +251,66 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   currentCardType: string
 }) {
   const totalPages = Math.ceil(totalCards / 20)
+  const [menuCardId, setMenuCardId] = useState<string | null>(null)
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    if (!menuCardId) return
+    const handler = () => setMenuCardId(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [menuCardId])
+
+  const handleToggleStar = async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const card = cards.find(c => c.id === cardId)
+    if (!card) return
+    try {
+      await updateCard(cardId, { starred: !card.starred })
+      // 更新本地状态
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, starred: !c.starred } : c))
+    } catch (err) {
+      console.error('Failed to toggle star:', err)
+    }
+    setMenuCardId(null)
+  }
+
+  const handleDelete = async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('确定删除此知识卡片？')) return
+    try {
+      await deleteCard(cardId)
+      setCards(prev => prev.filter(c => c.id !== cardId))
+      setTotalCards(prev => prev - 1)
+    } catch (err) {
+      console.error('Failed to delete card:', err)
+    }
+    setMenuCardId(null)
+  }
+
+  const formatCardDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const isToday = date.getFullYear() === now.getFullYear()
+      && date.getMonth() === now.getMonth()
+      && date.getDate() === now.getDate()
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    if (isToday) {
+      return `今天 ${hours}:${minutes}`
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日`
+  }
+
+  const formatNarrative = (narrative: string) => {
+    if (!narrative) return ''
+    // 取前 120 字，截断处尽量在标点
+    const text = narrative.replace(/\n+/g, ' ').trim()
+    if (text.length <= 120) return text
+    const cut = text.slice(0, 120)
+    const lastPunct = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'), cut.lastIndexOf('，'))
+    return lastPunct > 60 ? cut.slice(0, lastPunct + 1) : cut + '…'
+  }
 
   return (
     <div>
@@ -244,40 +347,61 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                 onClick={() => onCardClick(card.id)}
                 style={card.summarize_error ? { borderColor: '#ff9800' } : {}}
               >
+                {/* 标题行 */}
                 <div className="card-header">
                   <div className="card-title">{card.title}</div>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <div className="card-header-actions">
                     {card.summarize_error && (
                       <span className="error-badge" title={card.summarize_error}>
                         总结失败
                       </span>
                     )}
-                    <span
-                      className="platform-badge"
-                      style={{ background: PLATFORM_COLORS[card.source?.platform] || '#999' }}
+                    <button
+                      className="card-more-btn"
+                      onClick={(e) => { e.stopPropagation(); setMenuCardId(menuCardId === card.id ? null : card.id) }}
                     >
-                      {PLATFORM_NAMES[card.source?.platform] || card.source?.platform || '未知'}
-                    </span>
+                      ⋮
+                    </button>
+                    {menuCardId === card.id && (
+                      <div className="card-menu" onClick={e => e.stopPropagation()}>
+                        <button
+                          className={`card-menu-item ${card.starred ? 'card-menu-item--starred' : ''}`}
+                          onClick={(e) => handleToggleStar(card.id, e)}
+                        >
+                          {card.starred ? '★ 已收藏' : '☆ 收藏'}
+                        </button>
+                        <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
+                          删除
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="card-question">
-                  {card.original_question
-                    || (card.summarize_error ? `⚠️ ${card.summarize_error}` : '暂无核心问题')}
+
+                {/* 正文预览（narrative 摘要） */}
+                <div className="card-preview">
+                  {card.narrative
+                    ? formatNarrative(card.narrative)
+                    : (card.summarize_error ? card.summarize_error : '暂无摘要')}
                 </div>
+
+                {/* 标签行 */}
                 <div className="card-tags">
-                  <span className="tag" style={{
-                    background: card.summarize_error ? '#fff3e0' : '#f0f0ff',
-                    color: card.summarize_error ? '#e65100' : '#667eea',
-                    fontWeight: 500,
+                  <span className="tag tag--type" style={{
+                    background: INTENT_COLORS[card.card_type] || '#e8e8e8',
+                    color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
+                    fontWeight: 600,
                   }}>
                     {card.card_type}
                   </span>
-                  {card.tags?.map((tag, i) => (
+                  {fitTags(card.tags || []).map((tag, i) => (
                     <span key={i} className="tag">{tag}</span>
                   ))}
                 </div>
+
+                {/* 底部日期 */}
                 <div className="card-footer">
-                  <span>{new Date(card.created_at).toLocaleDateString('zh-CN')}</span>
+                  <span className="card-date">{formatCardDate(card.created_at)}</span>
                 </div>
               </div>
             ))}
@@ -309,10 +433,19 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
 function FavoritesList({ onCardClick, onBack }: { onCardClick: (id: string) => void; onBack: () => void }) {
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [menuCardId, setMenuCardId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCards()
   }, [])
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    if (!menuCardId) return
+    const handler = () => setMenuCardId(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [menuCardId])
 
   const loadCards = async () => {
     try {
@@ -324,6 +457,52 @@ function FavoritesList({ onCardClick, onBack }: { onCardClick: (id: string) => v
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleToggleStar = async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await updateCard(cardId, { starred: false }) // 收藏页取消收藏
+      setCards(prev => prev.filter(c => c.id !== cardId))
+    } catch (err) {
+      console.error('Failed to unstar card:', err)
+    }
+    setMenuCardId(null)
+  }
+
+  const handleDelete = async (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('确定删除此知识卡片？')) return
+    try {
+      await deleteCard(cardId)
+      setCards(prev => prev.filter(c => c.id !== cardId))
+    } catch (err) {
+      console.error('Failed to delete card:', err)
+    }
+    setMenuCardId(null)
+  }
+
+  const formatCardDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const isToday = date.getFullYear() === now.getFullYear()
+      && date.getMonth() === now.getMonth()
+      && date.getDate() === now.getDate()
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    if (isToday) {
+      return `今天 ${hours}:${minutes}`
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日`
+  }
+
+  const formatNarrative = (narrative: string) => {
+    if (!narrative) return ''
+    const text = narrative.replace(/\n+/g, ' ').trim()
+    if (text.length <= 120) return text
+    const cut = text.slice(0, 120)
+    const lastPunct = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'), cut.lastIndexOf('，'))
+    return lastPunct > 60 ? cut.slice(0, lastPunct + 1) : cut + '…'
   }
 
   if (loading) return <div className="loading">加载中...</div>
@@ -348,21 +527,55 @@ function FavoritesList({ onCardClick, onBack }: { onCardClick: (id: string) => v
             >
               <div className="card-header">
                 <div className="card-title">{card.title}</div>
-                <span
-                  className="platform-badge"
-                  style={{ background: PLATFORM_COLORS[card.source?.platform] || '#999' }}
-                >
-                  {PLATFORM_NAMES[card.source?.platform] || card.source?.platform || '未知'}
-                </span>
+                <div className="card-header-actions">
+                  {card.summarize_error && (
+                    <span className="error-badge" title={card.summarize_error}>
+                      总结失败
+                    </span>
+                  )}
+                  <button
+                    className="card-more-btn"
+                    onClick={(e) => { e.stopPropagation(); setMenuCardId(menuCardId === card.id ? null : card.id) }}
+                  >
+                    ⋮
+                  </button>
+                  {menuCardId === card.id && (
+                    <div className="card-menu" onClick={e => e.stopPropagation()}>
+                      <button
+                        className="card-menu-item card-menu-item--starred"
+                        onClick={(e) => handleToggleStar(card.id, e)}
+                      >
+                        ★ 已收藏
+                      </button>
+                      <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
+                        删除
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="card-question">{card.original_question || '暂无核心问题'}</div>
+
+              <div className="card-preview">
+                {card.narrative
+                  ? formatNarrative(card.narrative)
+                  : (card.summarize_error ? card.summarize_error : '暂无摘要')}
+              </div>
+
               <div className="card-tags">
-                <span className="tag" style={{ background: '#f0f0ff', color: '#667eea', fontWeight: 500 }}>
+                <span className="tag tag--type" style={{
+                  background: INTENT_COLORS[card.card_type] || '#e8e8e8',
+                  color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
+                  fontWeight: 600,
+                }}>
                   {card.card_type}
                 </span>
-                {card.tags?.map((tag, i) => (
+                {fitTags(card.tags || []).map((tag, i) => (
                   <span key={i} className="tag">{tag}</span>
                 ))}
+              </div>
+
+              <div className="card-footer">
+                <span className="card-date">{formatCardDate(card.created_at)}</span>
               </div>
             </div>
           ))}

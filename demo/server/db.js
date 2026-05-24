@@ -160,8 +160,9 @@ function getKnowledgeCards({ cardType, keyword, platform, starred, page = 1, pag
     summarize_error: c.summarize_error,
     starred: c.starred || false,
     archived: c.archived || false,
-    createdAt: c.createdAt,
-    updatedAt: c.updatedAt,
+    narrative: c.narrative || '',
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
   }));
 
   return { total, page, pageSize, cards: paged };
