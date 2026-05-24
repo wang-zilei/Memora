@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(node server/index.js)",
+      "Bash(node --run dev)",
+      "Bash(npx vite)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx:*)",
+      "Read(//h:/llm-chat-knowledge-base/**)",
+      "Edit(//h:/llm-chat-knowledge-base/**)",
+      "Write(//h:/llm-chat-knowledge-base/**)",
+      "Glob(//h:/llm-chat-knowledge-base/**)",
+      "Grep(//h:/llm-chat-knowledge-base/**)"
+    ],
+    "deny": []
+  }
+}

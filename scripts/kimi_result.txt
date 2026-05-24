@@ -1,0 +1,210 @@
+0
+: 
+{role: 'user', content: '你是大模型领域专家，我有一定的ppo基础，现在想要学习DPO\n帮我从0搭建一个训练案例，业务场景是人…据集的构造、sft、dpo的完整流程                     编辑  复制  分享', index: 0}
+1
+: 
+{role: 'assistant', content: '你是大模型领域专家，我有一定的ppo基础，现在想要学习DPO\n帮我从0搭建一个训练案例，业务场景是人…据集的构造、sft、dpo的完整流程                     编辑  复制  分享', index: 1}
+2
+: 
+{role: 'user', content: '你是大模型领域专家，我有一定的ppo基础，现在想要学习DPO\n帮我从0搭建一个训练案例，业务场景是人岗匹配领域。包括数据集的构造、sft、dpo的完整流程', index: 2}
+3
+: 
+content
+: 
+"编辑  复制  分享"
+index
+: 
+3
+role
+: 
+"user"
+[[Prototype]]
+: 
+Object
+4
+: 
+content
+: 
+"我来为你构建一个完整的DPO（Direct Preference Optimization）训练案
+index
+: 
+4
+role
+: 
+"assistant"
+[[Prototype]]
+: 
+Object
+5
+: 
+content
+: 
+"我来为你构建一个完整的DPO（Direct Preference Optimization）训练案
+index
+: 
+5
+role
+: 
+"assistant"
+[[Prototype]]
+: 
+Object
+6
+: 
+content
+: 
+"plain   复制 人岗匹配DPO训练流程\n├── 1. 数据集构造（偏好对数据）\n├── 2. SFT阶段（监督微调，学习基础匹配能力）\n└── 3. DPO阶段（直接偏好优化，学习排序偏好）"
+index
+: 
+6
+role
+: 
+"assistant"
+[[Prototype]]
+: 
+Object
+7
+: 
+{role: 'assistant', content: '人岗匹配DPO训练流程\n├── 1. 数据集构造（偏好对数据）\n├── 2. SFT阶段（监督微调，学习基础匹配能力）\n└── 3. DPO阶段（直接偏好优化，学习排序偏好）', index: 7}
+8
+: 
+content
+: 
+"plain   复制"
+index
+: 
+8
+role
+: 
+"assistant"
+[[Prototype]]
+: 
+Object
+9
+: 
+{role: 'assistant', content: 'plain', index: 9}
+10
+: 
+{role: 'assistant', content: '(prompt, chosen, rejected)', index: 10}
+11
+: 
+{role: 'assistant', content: 'JSON   复制 {\n"prompt": "岗位：高级Python后端工程师\\n要求：5年+经验，…n\\n理由：候选人A有扎实的Python基础，数据分析经验说明编程能力强，可以快速学习后端技术。"', index: 11}
+12
+: 
+{role: 'assistant', content: '"prompt": "岗位：高级Python后端工程师\\n要求：5年+经验，熟悉Django/Fla…n\\n理由：候选人A有扎实的Python基础，数据分析经验说明编程能力强，可以快速学习后端技术。"', index: 12}
+13
+: 
+{role: 'assistant', content: 'JSON   复制', index: 13}
+14
+: 
+{role: 'assistant', content: 'JSON', index: 14}
+15
+: 
+{role: 'assistant', content: 'Python   复制 # data_builder.py\nimport json\nimport r…(f"训练集：{len(train_data)}条，测试集：{len(test_data)}条")', index: 15}
+16
+: 
+{role: 'assistant', content: '# data_builder.py\nimport json\nimport random\nfrom t…(f"训练集：{len(train_data)}条，测试集：{len(test_data)}条")', index: 16}
+17
+: 
+{role: 'assistant', content: 'Python   复制', index: 17}
+18
+: 
+content
+: 
+"Python"
+index
+: 
+18
+role
+: 
+"assistant"
+[[Prototype]]
+: 
+Object
+19
+: 
+{role: 'assistant', content: 'Python   复制 # sft_train.py\nimport torch\nfrom trans…(f"{OUTPUT_DIR}/final_adapter")\nprint("SFT训练完成！")', index: 19}
+20
+: 
+{role: 'assistant', content: '# sft_train.py\nimport torch\nfrom transformers impo…(f"{OUTPUT_DIR}/final_adapter")\nprint("SFT训练完成！")', index: 20}
+21
+: 
+{role: 'assistant', content: 'learning_rate', index: 21}
+22
+: 
+{role: 'assistant', content: 'modules_to_save', index: 22}
+23
+: 
+{role: 'assistant', content: 'num_train_epochs', index: 23}
+24
+: 
+{role: 'assistant', content: 'warmup_ratio', index: 24}
+25
+: 
+{role: 'assistant', content: 'Python   复制 # dpo_train.py\nimport torch\nfrom trans…"{OUTPUT_DIR}/final_dpo_model")\nprint("DPO训练完成！")', index: 25}
+26
+: 
+{role: 'assistant', content: '# dpo_train.py\nimport torch\nfrom transformers impo…"{OUTPUT_DIR}/final_dpo_model")\nprint("DPO训练完成！")', index: 26}
+27
+: 
+{role: 'assistant', content: 'beta', index: 27}
+28
+: 
+{role: 'assistant', content: 'loss_type', index: 28}
+29
+: 
+{role: 'assistant', content: 'Python   复制 # inference.py\nimport torch\nfrom trans…el, tokenizer, job, cand_a, cand_b)\nprint(result)', index: 29}
+30
+: 
+{role: 'assistant', content: '# inference.py\nimport torch\nfrom transformers impo…el, tokenizer, job, cand_a, cand_b)\nprint(result)', index: 30}
+31
+: 
+{role: 'assistant', content: 'Python   复制 # evaluate.py\nimport torch\nfrom transf…n/Qwen2.5-7B-Instruct",\n"job_matching_test.jsonl"', index: 31}
+32
+: 
+{role: 'assistant', content: '# evaluate.py\nimport torch\nfrom transformers impor…n/Qwen2.5-7B-Instruct",\n"job_matching_test.jsonl"', index: 32}
+33
+: 
+{role: 'assistant', content: 'plain   复制 ┌──────────────────────────────────────…────────────────────────────────────────────────┘', index: 33}
+34
+: 
+{role: 'assistant', content: '┌─────────────────────────────────────────────────…────────────────────────────────────────────────┘', index: 34}
+35
+: 
+{role: 'assistant', content: 'Python   复制 # iterative_dpo.py\ndef generate_candid…ates[best_idx],\n"rejected": candidates[worst_idx]', index: 35}
+36
+: 
+{role: 'assistant', content: '# iterative_dpo.py\ndef generate_candidates_with_mo…ates[best_idx],\n"rejected": candidates[worst_idx]', index: 36}
+37
+: 
+{role: 'assistant', content: 'Python   复制 # s_dpo_loss.py\ndef s_dpo_loss(policy_…h.sigmoid(logits).mean(dim=1)).mean()\nreturn loss', index: 37}
+38
+: 
+{role: 'assistant', content: '# s_dpo_loss.py\ndef s_dpo_loss(policy_logps, refer…h.sigmoid(logits).mean(dim=1)).mean()\nreturn loss', index: 38}
+39
+: 
+{role: 'assistant', content: '引用', index: 39}
+length
+: 
+40
+[[Prototype]]
+: 
+Array(0)
+notes
+: 
+(2) ['This probe captures visible/loaded DOM content only.', 'If the platform virtualizes old turns, scroll the … or improve this probe with an internal API path.']
+platform
+: 
+"kimi"
+strategy
+: 
+"visible-dom-open-shadow"
+title
+: 
+"人岗匹配DPO案例 - Kimi"
+url
+: 
+"https://www.kimi.com/chat/19d3dd84-c3c2-8160-8000-095634fa2dbd?chat_enter_method=history"
+[[Prototype]]
+: 
+Object

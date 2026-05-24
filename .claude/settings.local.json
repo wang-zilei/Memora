@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"h:/llm-chat-knowledge-base/.claude\")",
+      "Bash(mkdir -p \"h:/llm-chat-knowledge-base/.claude/memory\")",
+      "Bash(node --check \"h:/llm-chat-knowledge-base/demo/extension/content.js\")",
+      "Read(//c/Users/Jackson lee/.claude/**)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)",
+      "Bash(./rustup-init.exe -y)",
+      "Bash(rustup --version)",
+      "Bash(where link.exe)",
+      "Read(//c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft Visual Studio/**)",
+      "Bash(\"C:/Program Files \\(x86\\)/Microsoft Visual Studio/Installer/vswhere.exe\" -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)",
+      "Bash(pkill -f \"node server/index.js\")",
+      "Bash(cd /h/llm-chat-knowledge-base/demo && rm -f data/db.json && echo \"cleaned\")"
+    ],
+    "additionalDirectories": [
+      "h:\\llm-chat-knowledge-base",
+      "h:\\llm-chat-knowledge-base\\.claude",
+      "C:\\Users\\Jackson lee\\.claude",
+      "h:\\h\\llm-chat-knowledge-base\\demo\\data"
+    ]
+  }
+}

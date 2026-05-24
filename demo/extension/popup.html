@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>LLM 对话知识库</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 16px; min-width: 320px; }
+    .header { text-align: center; margin-bottom: 16px; }
+    .header h1 { font-size: 16px; color: #333; }
+    .header .subtitle { font-size: 12px; color: #999; margin-top: 4px; }
+    .status { padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+    .status.ok { background: #e8f5e9; color: #2e7d32; }
+    .status.error { background: #ffebee; color: #c62828; }
+    .status.loading { background: #fff3e0; color: #e65100; }
+    .info { font-size: 12px; color: #666; line-height: 1.6; }
+    .info code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    .btn { display: block; width: 100%; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 8px; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5a6fd6; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧠 LLM 对话知识库</h1>
+    <div class="subtitle">一键抓取 · 自动总结 · 知识沉淀</div>
+  </div>
+
+  <div id="status" class="status loading">检查后端连接中...</div>
+
+  <div class="info">
+    <p>📌 <b>使用方法：</b></p>
+    <p>1. 确保后端服务已启动: <code>npm run server</code></p>
+    <p>2. 在 LLM 对话页面点击右侧悬浮球</p>
+    <p>3. 等待抓取和 AI 总结完成</p>
+    <p>4. 在知识库界面查看结果</p>
+  </div>
+
+  <button class="btn btn-primary" id="openKB">打开知识库</button>
+  <button class="btn btn-primary" id="checkStatus" style="margin-top: 8px;">重新检查连接</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
