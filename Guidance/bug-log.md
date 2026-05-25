@@ -158,3 +158,32 @@
   2. **ai.js 解析层**：兼容 5 种返回格式（数组 / {topic_blocks} / 单个块对象 / utterances 格式 / 无索引格式）
   3. **ai.js 防御层**：当 LLM 返回 N 个话题块但没有 start_idx/end_idx 时，按块顺序自动推断索引（第 i 个块 start=前一个end+1，最后一个 end=userMsgs.length）
 - **新增兼容字段名：** `start_user/end_user`、`id`、`utterances`（从中提取数字索引）、单块对象格式
+
+## E-016 — 长对话生成卡片 narrative 为空或乱码
+- **日期：** 2026-05-25
+- **位置：** `demo/server/ai.js` — `callOpenAICompatible()`、卡片生成阶段
+- **现象：** DeepSeek/元宝等平台对话较长时，生成卡片标题正常但 narrative 为空字符串或乱码截断
+- **根因：** `callOpenAICompatible()` 的 `max_tokens` 参数固定为 2000，该参数限制 LLM **输出长度**而非输入长度。长对话需要 LLM 生成较长的 JSON（包含 title、narrative、tags、full_output 等），2000 token 不够导致输出被截断，JSON 不完整，修复后也无法解析
+- **修复：** 
+  1. 将 `callOpenAICompatible()` 参数从硬编码 `max_tokens: 2000` 改为 `maxTokens` 参数，默认 4000
+  2. Pipeline 各步骤差异化配置：话题切分 2000 / 意图分类 100 / 卡片生成 6000
+  3. 增强 JSON 修复层：新增 `tryRepairJSON()` 7 层修复（markdown 去除 → 花括号提取 → 字面换行修复 → 未闭合引号 → 尾部逗号 → 缺失逗号 → 未闭合花括号）
+- **教训：** `max_tokens` 是输出限制不是输入限制，模型上下文窗口大 ≠ 可以输出同样长
+
+## E-017 — 话题拆分过细 + 去重太弱，同一次 capture 产生大量近似卡片
+- **日期：** 2026-05-25
+- **位置：** `docs/prompts/topic-split/prompt.md`、`demo/server/ai.js` — `deduplicateCards()`
+- **现象：**
+  1. 天气+余华对话（3 user 消息）→ 生成 5 张卡（2 张天气 + 3 张余华）
+  2. 个人效率对话（4 user 消息）→ 生成 13 张近似卡（习惯回路×3、时间块法×3、PARA×3 等）
+  3. 年龄/自律对话（4 user 消息）→ 生成 30 张近似卡（"自律的本质与困境" vs "自律的底层逻辑" 等 29 张概念理解）
+- **根因（两部分）：**
+  1. **话题切分过细**：LLM 把同一生活主题下的子话题（20/30 岁区别、健康 vs 事业、自律困境）拆成独立话题块。Prompt 中只有抽象的"合并优先"原则，缺少具体示例告诉 LLM 什么是"同主题子话题"
+  2. **去重太弱**：dedup 只比较标题/问题的字符集 Jaccard 相似度，narrative 只取前 100 字。"自律的本质与困境" vs "自律的底层逻辑" 字面重叠不够就放行
+- **修复（两层）：**
+  1. **Prompt 强化**：在 topic-split prompt 中新增"同主题下的子话题不拆分"原则 + 具体示例（个人效率提升下 PARA/时间块/习惯回路 → 不拆分）
+  2. **Dedup 加强**：
+     - narrative 比较长度从 100 字加大到 200 字，捕捉更多语义
+     - 新增情况 6：同一次 capture 的卡片，narrative 重叠 >= 0.5 就去重
+     - 新增情况 7：任意两张同类型卡片，narrative 重叠 >= 0.65 就去重（防止换标题但同内容）
+     - 去重日志输出 narrative 相似度，方便排查

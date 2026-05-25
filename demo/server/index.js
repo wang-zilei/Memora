@@ -85,7 +85,11 @@ app.post('/api/capture', async (req, res) => {
 
       // 6. 更新第一张卡片（兼容旧版单卡片返回），保存所有新卡片
       if (cards.length === 0) {
+        // Pipeline 返回 0 张卡片，说明 AI 处理出了问题，标记卡片
         console.log(`[Capture] 警告: Pipeline 返回 0 张卡片，卡片保持"待总结"状态`);
+        db.updateKnowledgeCard(card.id, {
+          summarize_error: 'AI 总结未产出有效内容，可能是 API 返回格式异常',
+        });
       }
       if (cards.length > 0) {
         const first = cards[0];
@@ -126,19 +130,37 @@ app.post('/api/capture', async (req, res) => {
 
       console.log(`[Capture] Pipeline 完成，生成 ${cards.length} 张卡片`);
 
-      res.json({
-        success: true,
-        message: `对话已抓取、清洗、总结，生成 ${cards.length} 张知识卡片`,
-        rawId: savedRaw.id,
-        cleanId: savedClean.id,
-        cardId: card.id,
-        cardCount: cards.length,
-        card: {
-          title: card.title,
-          card_type: card.card_type,
-          tags: card.tags,
-        },
-      });
+      // Pipeline 返回 0 张卡片时，标记 aiError 让前端知道
+      if (cards.length === 0) {
+        res.json({
+          success: true,
+          message: `对话已抓取并保存，但 AI 总结未产出有效内容`,
+          rawId: savedRaw.id,
+          cleanId: savedClean.id,
+          cardId: card.id,
+          cardCount: 0,
+          aiError: 'AI 总结未产出有效内容，可能是 API 返回格式异常',
+          card: {
+            title: card.title,
+            card_type: card.card_type,
+            tags: card.tags,
+          },
+        });
+      } else {
+        res.json({
+          success: true,
+          message: `对话已抓取、清洗、总结，生成 ${cards.length} 张知识卡片`,
+          rawId: savedRaw.id,
+          cleanId: savedClean.id,
+          cardId: card.id,
+          cardCount: cards.length,
+          card: {
+            title: card.title,
+            card_type: card.card_type,
+            tags: card.tags,
+          },
+        });
+      }
     } catch (aiError) {
       console.error('[Capture] AI 总结失败:', aiError.message);
       // 标记卡片为总结失败状态
@@ -169,6 +191,7 @@ app.get('/api/cards', (req, res) => {
     const result = db.getKnowledgeCards({
       cardType: req.query.card_type,
       keyword: req.query.keyword,
+      tag: req.query.tag,
       platform: req.query.platform,
       starred: req.query.starred === 'true',
       page: parseInt(req.query.page) || 1,
@@ -295,17 +318,27 @@ app.put('/api/settings', (req, res) => {
 app.post('/api/settings/validate', async (req, res) => {
   try {
     const { apiKey, apiUrl, model } = req.body;
-    // 简单验证：尝试调用 API
-    await ai.summarizeConversation({
+    const result = await ai.callOpenAICompatible({
       apiKey,
       apiUrl: apiUrl || 'https://api.openai.com/v1',
       model: model || 'gpt-4.1-nano',
-      messages: [{ role: 'user', content: '测试连接' }],
-      platform: 'test',
+      systemPrompt: 'You are a test assistant.',
+      userPrompt: 'Hi',
+      temperature: 0.3,
     });
-    res.json({ success: true, message: 'API Key 验证成功' });
+    res.json({ success: true, message: `连接成功（模型返回: ${result.slice(0, 50)}${result.length > 50 ? '...' : ''}）` });
   } catch (error) {
-    res.json({ success: false, error: error.message });
+    const msg = error.message || String(error);
+    // 分类错误类型
+    if (msg.includes('ENOTFOUND') || msg.includes('ETIMEDOUT') || msg.includes('ECONNREFUSED')) {
+      res.json({ success: false, error: `无法连接到 API 地址: ${msg}` });
+    } else if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized')) {
+      res.json({ success: false, error: `API Key 无效: 认证失败` });
+    } else if (msg.includes('404')) {
+      res.json({ success: false, error: `API 地址不正确: 接口不存在` });
+    } else {
+      res.json({ success: false, error: msg });
+    }
   }
 });
 

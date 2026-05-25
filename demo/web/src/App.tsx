@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import './index.css'
-import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard } from './api'
+import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
 import { LogoIcon, LogoWordmark, NavIcon } from './Logo'
@@ -54,6 +56,7 @@ function App() {
   const [page, setPage] = useState<Page>('list')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [currentCardType, setCurrentCardType] = useState<string>('全部')
+  const [currentTag, setCurrentTag] = useState<string>('')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [totalCards, setTotalCards] = useState(0)
@@ -64,6 +67,7 @@ function App() {
     try {
       const params: Record<string, string> = { page: String(currentPage), pageSize: '20' }
       if (currentCardType !== '全部') params.card_type = currentCardType
+      if (currentTag) params.tag = currentTag
       if (searchKeyword) params.keyword = searchKeyword
       const data: CardListResponse = await getCards(params)
       setCards(data.cards)
@@ -75,7 +79,7 @@ function App() {
 
   useEffect(() => {
     loadCards()
-  }, [currentCardType, currentPage])
+  }, [currentCardType, currentTag, currentPage])
 
   const handleSearch = () => {
     setCurrentPage(1)
@@ -104,7 +108,9 @@ function App() {
         currentPage={page}
         onNavigate={handleNavigate}
         currentCardType={currentCardType}
+        currentTag={currentTag}
         onCardTypeChange={(type) => { setCurrentCardType(type); setCurrentPage(1); }}
+        onTagChange={(tag) => { setCurrentTag(tag); setCurrentCardType('全部'); setCurrentPage(1); }}
         onOpenSettings={() => setPage('settings')}
       />
 
@@ -120,10 +126,12 @@ function App() {
             onPageChange={setCurrentPage}
             onCardClick={handleCardClick}
             currentCardType={currentCardType}
+            currentTag={currentTag}
+            onTagClear={() => { setCurrentTag(''); }}
           />
         )}
         {page === 'favorites' && (
-          <FavoritesList onCardClick={handleCardClick} onBack={() => handleNavigate('list')} />
+          <FavoritesList onCardClick={handleCardClick} />
         )}
         {page === 'statistics' && <StatisticsPage />}
         {page === 'detail' && selectedCardId && (
@@ -147,11 +155,13 @@ const CARD_TYPES = [
   '文本处理', '规划决策', '头脑风暴', '交互陪伴', '其他',
 ] as const
 
-function Sidebar({ currentPage, onNavigate, currentCardType, onCardTypeChange, onOpenSettings }: {
+function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardTypeChange, onTagChange, onOpenSettings }: {
   currentPage: Page
   onNavigate: (p: Page) => void
   currentCardType: string
+  currentTag: string
   onCardTypeChange: (type: string) => void
+  onTagChange: (tag: string) => void
   onOpenSettings: () => void
 }) {
   const [tags, setTags] = useState<TagInfo[]>([])
@@ -215,7 +225,13 @@ function Sidebar({ currentPage, onNavigate, currentCardType, onCardTypeChange, o
             <span style={{ fontSize: 12, color: 'var(--sidebar-text-muted)' }}>暂无标签</span>
           ) : (
             tags.map(t => (
-              <span key={t.tag} className="tag-chip" title={`${t.tag} (${t.count})`}>
+              <span
+                key={t.tag}
+                className={`tag-chip ${currentTag === t.tag ? 'tag-chip--active' : ''}`}
+                title={`${t.tag} (${t.count})`}
+                onClick={() => { onNavigate('list'); onCardTypeChange('全部'); onTagChange(currentTag === t.tag ? '' : t.tag); }}
+                style={{ cursor: 'pointer' }}
+              >
                 {t.tag}
               </span>
             ))
@@ -223,14 +239,10 @@ function Sidebar({ currentPage, onNavigate, currentCardType, onCardTypeChange, o
         </div>
       </div>
 
-      {/* 底部：用户 + 设置 */}
+      {/* 底部：设置按钮 */}
       <div className="sidebar-footer">
-        <div className="user-profile">
-          <div className="avatar-placeholder">用</div>
-          <span className="user-name">用户</span>
-        </div>
-        <button className="settings-btn" onClick={onOpenSettings}>
-          设置
+        <button className="settings-btn" onClick={onOpenSettings} title="设置">
+          <span className="material-symbols-rounded">settings</span>
         </button>
       </div>
     </div>
@@ -239,7 +251,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, onCardTypeChange, o
 
 // ============ 卡片列表组件 ============
 
-function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onPageChange, onCardClick, currentCardType }: {
+function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onPageChange, onCardClick, currentCardType, currentTag, onTagClear }: {
   cards: KnowledgeCardSummary[]
   totalCards: number
   currentPage: number
@@ -249,6 +261,8 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   onPageChange: (page: number) => void
   onCardClick: (id: string) => void
   currentCardType: string
+  currentTag: string
+  onTagClear: () => void
 }) {
   const totalPages = Math.ceil(totalCards / 20)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
@@ -324,6 +338,14 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
         />
         <button onClick={onSearch}>搜索</button>
       </div>
+
+      {currentTag && (
+        <div className="tag-filter-bar">
+          <span className="tag-filter-label">当前筛选：</span>
+          <span className="tag-filter-tag">{currentTag}</span>
+          <button className="tag-filter-clear" onClick={onTagClear}>清除筛选</button>
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <div className="empty-state">
@@ -430,7 +452,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
 
 // ============ 收藏列表组件 ============
 
-function FavoritesList({ onCardClick, onBack }: { onCardClick: (id: string) => void; onBack: () => void }) {
+function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
@@ -508,9 +530,8 @@ function FavoritesList({ onCardClick, onBack }: { onCardClick: (id: string) => v
   if (loading) return <div className="loading">加载中...</div>
 
   return (
-    <div>
-      <button className="back-btn" style={{ marginBottom: 16 }} onClick={onBack}>← 返回首页</button>
-      <h2 style={{ fontSize: 20, marginBottom: 20 }}>收藏</h2>
+    <div className="favorites-page">
+      <h1 className="favorites-title">收藏</h1>
       {cards.length === 0 ? (
         <div className="empty-state">
           <div className="icon"></div>
@@ -605,7 +626,7 @@ function StatisticsPage() {
 
   return (
     <div className="statistics-page">
-      <h2>统计</h2>
+      <h1 className="statistics-title">统计</h1>
 
       {/* 总卡片数 */}
       <div className="stat-card">
@@ -686,6 +707,8 @@ function CardDetail({ cardId, onBack }: {
   const [showDropdown, setShowDropdown] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadCard()
@@ -757,6 +780,85 @@ function CardDetail({ cardId, onBack }: {
     setEditTitleValue('')
   }
 
+  const handleExport = async (format: 'txt' | 'pdf' | 'image') => {
+    if (!card) return
+    setShowExportMenu(false)
+    setExporting(true)
+    try {
+      const platformName = PLATFORM_NAMES[card.source?.platform] || card.source?.platform
+      const content = `# ${card.title}
+
+## 核心问题
+${card.original_question || '无'}
+
+## 关键结论
+${card.narrative || '无'}
+
+## 标签
+${(card.tags || []).join(', ')}
+
+## 来源
+${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at).toLocaleString('zh-CN') : '未知'}
+`
+      const filename = card.title.replace(/[^一-龥a-zA-Z0-9]/g, '_')
+
+      if (format === 'txt') {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${filename}.txt`
+        a.click()
+        URL.revokeObjectURL(url)
+      } else if (format === 'pdf') {
+        const doc = new jsPDF()
+        doc.addFont('Helvetica', 'Helvetica', 'normal')
+        doc.setFont('Helvetica')
+        doc.setFontSize(16)
+        doc.text(card.title, 20, 20, { maxWidth: 170 })
+        doc.setFontSize(12)
+        doc.setTextColor('#666')
+        let y = 35
+        doc.setTextColor('#333')
+        doc.setFontSize(10)
+        doc.text('Core Question', 20, y)
+        doc.setTextColor('#666')
+        y += 6
+        const questionLines = doc.splitTextToSize(card.original_question || 'N/A', 170)
+        doc.text(questionLines, 20, y)
+        y += questionLines.length * 5 + 5
+        doc.setTextColor('#333')
+        doc.text('Key Conclusion', 20, y)
+        doc.setTextColor('#666')
+        y += 6
+        const narrativeLines = doc.splitTextToSize(card.narrative || 'N/A', 170)
+        doc.text(narrativeLines, 20, y)
+        y += narrativeLines.length * 5 + 5
+        doc.setTextColor('#999')
+        doc.setFontSize(9)
+        doc.text(`Tags: ${(card.tags || []).join(', ')} | Source: ${platformName}`, 20, y)
+        doc.save(`${filename}.pdf`)
+      } else if (format === 'image') {
+        const detailEl = document.querySelector('.detail-card')
+        if (!detailEl) return
+        const canvas = await html2canvas(detailEl as HTMLElement, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+        })
+        const a = document.createElement('a')
+        a.href = canvas.toDataURL('image/png')
+        a.download = `${filename}.png`
+        a.click()
+      }
+    } catch (e) {
+      console.error('Export failed:', e)
+      alert('导出失败: ' + (e as Error).message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) return <div className="loading">加载中...</div>
   if (!card) return <div className="empty-state"><h3>卡片不存在</h3></div>
 
@@ -791,6 +893,35 @@ function CardDetail({ cardId, onBack }: {
               <span className="material-symbols-rounded">edit</span>
             </button>
           )}
+          {!editingTitle && (
+            <div className="dropdown-wrapper">
+              <button className="icon-btn" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting} title="导出卡片">
+                <span className="material-symbols-rounded">download</span>
+              </button>
+              {showExportMenu && (
+                <>
+                  <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    onClick={() => setShowExportMenu(false)}
+                  />
+                  <div className="dropdown-menu">
+                    <button className="dropdown-item" onClick={() => handleExport('txt')}>
+                      <span className="material-symbols-rounded">description</span>
+                      导出为 TXT
+                    </button>
+                    <button className="dropdown-item" onClick={() => handleExport('pdf')}>
+                      <span className="material-symbols-rounded">picture_as_pdf</span>
+                      导出为 PDF
+                    </button>
+                    <button className="dropdown-item" onClick={() => handleExport('image')}>
+                      <span className="material-symbols-rounded">image</span>
+                      导出为图片
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {editingTitle ? (
             <div className="title-edit-actions">
               <button className="save-title-btn" onClick={handleSaveTitle}>保存</button>
@@ -808,7 +939,7 @@ function CardDetail({ cardId, onBack }: {
                     onClick={() => setShowDropdown(false)}
                   />
                   <div className="dropdown-menu">
-                    <button className="dropdown-item" onClick={handleToggleFavorite}>
+                    <button className={`dropdown-item ${card.starred ? 'dropdown-item--starred' : ''}`} onClick={handleToggleFavorite}>
                       <span className="material-symbols-rounded">{card.starred ? 'star' : 'star_border'}</span>
                       {card.starred ? '取消收藏' : '收藏'}
                     </button>
@@ -949,10 +1080,12 @@ function CardDetail({ cardId, onBack }: {
 function SettingsPage({ onBack }: { onBack: () => void }) {
   const [settings, setSettings] = useState<Settings>({})
   const [apiKey, setApiKey] = useState('')
-  const [apiUrl, setApiUrl] = useState('https://api.openai.com/v1')
-  const [model, setModel] = useState('gpt-4.1-nano')
+  const [apiUrl, setApiUrl] = useState('')
+  const [model, setModel] = useState('')
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState('')
+  const [testResult, setTestResult] = useState<{ success: boolean; detail: string } | null>(null)
 
   useEffect(() => {
     loadSettings()
@@ -962,11 +1095,11 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
     try {
       const data = await getSettings()
       setSettings(data.settings)
-      setApiUrl(data.settings.apiUrl || 'https://api.openai.com/v1')
-      setModel(data.settings.model || 'gpt-4.1-nano')
       if (!data.settings._hasApiKey) {
         setApiKey('')
       }
+      setApiUrl(data.settings.apiUrl || '')
+      setModel(data.settings.model || '')
     } catch (e) {
       console.error('Failed to load settings:', e)
     }
@@ -975,83 +1108,163 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
   const handleSave = async () => {
     setSaving(true)
     setMessage('')
+    setTestResult(null)
     try {
       const updates: Record<string, string> = { apiUrl, model }
       if (apiKey) updates.apiKey = apiKey
       await updateSettings(updates)
-      setMessage('✅ 设置已保存')
+      setMessage('设置已保存')
       loadSettings()
     } catch (e) {
-      setMessage('❌ 保存失败: ' + (e as Error).message)
+      setMessage('保存失败: ' + (e as Error).message)
     } finally {
       setSaving(false)
     }
   }
 
+  const handleTestConnection = async () => {
+    setTesting(true)
+    setTestResult(null)
+    setMessage('')
+    try {
+      const data = await testSettingsConnection({
+        apiKey: apiKey || undefined,
+        apiUrl: apiUrl || undefined,
+        model: model || undefined,
+      })
+      if (data.success) {
+        setTestResult({ success: true, detail: data.message || '连接成功，API 响应正常' })
+      } else {
+        setTestResult({ success: false, detail: data.error || '连接失败' })
+      }
+    } catch (e) {
+      setTestResult({ success: false, detail: (e as Error).message })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   return (
     <div className="settings-page">
-      <button className="back-btn" onClick={onBack}>← 返回</button>
-      <h2>设置</h2>
-
-      <div className="form-group">
-        <label>API Key</label>
-        <input
-          type="password"
-          placeholder={settings._hasApiKey ? '已配置（输入新值可修改）' : '请输入 API Key'}
-          value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
-        />
-        <div className="hint">支持 OpenAI、DeepSeek 等兼容 OpenAI 格式的 API Key</div>
+      <div className="settings-header">
+        <button className="icon-btn" onClick={onBack}>
+          <span className="material-symbols-rounded">arrow_back</span>
+        </button>
+        <h2>设置</h2>
       </div>
 
-      <div className="form-group">
-        <label>API 地址</label>
-        <select value={apiUrl} onChange={e => setApiUrl(e.target.value)}>
-          <option value="https://api.openai.com/v1">OpenAI (api.openai.com)</option>
-          <option value="https://api.deepseek.com/v1">DeepSeek (api.deepseek.com)</option>
-          <option value="https://open.bigmodel.cn/api/paas/v4">智谱 GLM (open.bigmodel.cn)</option>
-          <option value="custom">自定义...</option>
-        </select>
-        {apiUrl === 'custom' && (
-          <input
-            type="text"
-            placeholder="输入自定义 API 地址"
-            onChange={e => setApiUrl(e.target.value)}
-            style={{ marginTop: 8 }}
-          />
+      <div className="settings-card">
+        <div className="settings-section">
+          <h3 className="settings-section-title">API 配置</h3>
+
+          <div className="form-group">
+            <label>API Key</label>
+            <input
+              type="password"
+              placeholder={settings._hasApiKey ? '已配置（输入新值可修改）' : '请输入 API Key'}
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+            />
+            <div className="hint">支持 OpenAI、DeepSeek 等兼容 OpenAI 格式的 API</div>
+          </div>
+
+          <div className="form-group">
+            <label>API 地址</label>
+            <input
+              type="text"
+              placeholder="https://api.deepseek.com/v1"
+              value={apiUrl}
+              onChange={e => setApiUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>模型</label>
+            <input
+              type="text"
+              placeholder="deepseek-chat"
+              value={model}
+              onChange={e => setModel(e.target.value)}
+            />
+            <div className="hint">总结任务为轻推理，小模型即可胜任，单次成本约 ¥0.01</div>
+          </div>
+        </div>
+
+        <div className="settings-actions">
+          <button
+            className="test-btn"
+            onClick={handleTestConnection}
+            disabled={testing || saving}
+          >
+            <span className="material-symbols-rounded">network_check</span>
+            {testing ? '测试中...' : '测试连接'}
+          </button>
+          <button
+            className="save-btn"
+            onClick={handleSave}
+            disabled={saving || testing}
+          >
+            {saving ? '保存中...' : '保存设置'}
+          </button>
+        </div>
+
+        {testResult && (
+          <div className={`test-result ${testResult.success ? 'test-result--success' : 'test-result--error'}`}>
+            <span className="material-symbols-rounded">
+              {testResult.success ? 'check_circle' : 'error'}
+            </span>
+            <span>{testResult.detail}</span>
+          </div>
+        )}
+
+        {message && !message.startsWith('保存失败') && (
+          <div className="save-message save-message--success">
+            <span className="material-symbols-rounded">check_circle</span>
+            <span>{message}</span>
+          </div>
+        )}
+        {message && message.startsWith('保存失败') && (
+          <div className="save-message save-message--error">
+            <span className="material-symbols-rounded">error</span>
+            <span>{message}</span>
+          </div>
         )}
       </div>
 
-      <div className="form-group">
-        <label>模型</label>
-        <select value={model} onChange={e => setModel(e.target.value)}>
-          <option value="gpt-4.1-nano">GPT-4.1 nano（推荐，性价比最高）</option>
-          <option value="gpt-4.1-mini">GPT-4.1 mini（质量更好）</option>
-          <option value="deepseek-chat">DeepSeek V3（国内首选）</option>
-          <option value="glm-4-flash">GLM-4 Flash（国内免费额度）</option>
-        </select>
-        <div className="hint">总结任务为轻推理，小模型即可胜任，单次成本约 ¥0.01</div>
-      </div>
-
-      {message && (
-        <div style={{ padding: '8px 12px', borderRadius: 6, background: message.startsWith('✅') ? '#e8f5e9' : '#ffebee', fontSize: 13 }}>
-          {message}
+      <div className="quick-start-card">
+        <div className="quick-start-title">
+          <span className="material-symbols-rounded">rocket_launch</span>
+          快速开始
         </div>
-      )}
-
-      <button className="save-btn" onClick={handleSave} disabled={saving}>
-        {saving ? '保存中...' : '保存设置'}
-      </button>
-
-      <div style={{ marginTop: 32, padding: 16, background: '#f8f9ff', borderRadius: 8 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>快速开始指南</div>
-        <ol style={{ fontSize: 13, lineHeight: 2, paddingLeft: 20, color: '#555' }}>
-          <li>启动后端服务：<code style={{ background: '#e8e8e8', padding: '2px 6px', borderRadius: 3 }}>npm run server</code></li>
-          <li>在上方配置你的 API Key</li>
-          <li>在 Chrome 中加载扩展（chrome://extensions → 开发者模式 → 加载已解压的扩展）</li>
-          <li>选择 demo/extension 文件夹</li>
-          <li>打开任意 LLM 对话页面，点击右侧悬浮球</li>
-          <li>回到此页面查看生成的知识卡片</li>
+        <ol className="quick-start-steps">
+          <li>
+            <span className="step-number">1</span>
+            <div className="step-content">
+              <strong>配置 API 信息</strong>
+              <span>在上方填写你的 API Key、API 地址和模型名称</span>
+            </div>
+          </li>
+          <li>
+            <span className="step-number">2</span>
+            <div className="step-content">
+              <strong>安装浏览器扩展</strong>
+              <span>打开 Chrome，进入 chrome://extensions → 开启「开发者模式」→ 点击「加载已解压的扩展程序」→ 选择本项目的 extension 文件夹</span>
+            </div>
+          </li>
+          <li>
+            <span className="step-number">3</span>
+            <div className="step-content">
+              <strong>打开 LLM 对话页面</strong>
+              <span>在浏览器中打开任意 LLM 网页版（如 ChatGPT、Claude、DeepSeek 等），点击页面右侧的悬浮球即可自动抓取当前对话</span>
+            </div>
+          </li>
+          <li>
+            <span className="step-number">4</span>
+            <div className="step-content">
+              <strong>查看知识卡片</strong>
+              <span>回到此页面，即可看到自动生成的知识卡片</span>
+            </div>
+          </li>
         </ol>
       </div>
     </div>

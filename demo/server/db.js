@@ -120,7 +120,7 @@ function saveKnowledgeCard(data) {
   return record;
 }
 
-function getKnowledgeCards({ cardType, keyword, platform, starred, page = 1, pageSize = 20 } = {}) {
+function getKnowledgeCards({ cardType, keyword, tag, platform, starred, page = 1, pageSize = 20 } = {}) {
   const db = loadDB();
   let cards = Object.values(db.knowledgeCards);
 
@@ -140,6 +140,9 @@ function getKnowledgeCards({ cardType, keyword, platform, starred, page = 1, pag
   }
   if (platform) {
     cards = cards.filter(c => c.source?.platform === platform);
+  }
+  if (tag) {
+    cards = cards.filter(c => (c.tags || []).includes(tag));
   }
   if (starred) {
     cards = cards.filter(c => c.starred);
@@ -185,6 +188,8 @@ function updateKnowledgeCard(id, updates) {
   if (updates.narrative !== undefined) card.narrative = updates.narrative;
   if (updates.full_output !== undefined) card.full_output = updates.full_output;
   if (updates.summarize_error !== undefined) card.summarize_error = updates.summarize_error;
+  if (updates.starred !== undefined) card.starred = updates.starred;
+  if (updates.archived !== undefined) card.archived = updates.archived;
   // 兼容旧字段名
   if (updates.originalQuestion !== undefined) card.original_question = updates.originalQuestion;
   if (updates.insights !== undefined) card.narrative = updates.insights.join('\n') || '';

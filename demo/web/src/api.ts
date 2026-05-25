@@ -79,6 +79,11 @@ async function callTauriCommand(path: string, options?: RequestInit) {
     return invoke('update_settings', { updates: body });
   }
 
+  // POST /api/settings/validate → validate_settings
+  if (path === '/settings/validate' && method === 'POST') {
+    return invoke('validate_settings', { settings: body });
+  }
+
   throw new Error(`Unsupported API call: ${method} ${path}`);
 }
 
@@ -128,6 +133,17 @@ export async function getSettings() {
 export async function updateSettings(settings: Record<string, string>) {
   return callAPI('/settings', {
     method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+}
+
+export async function testSettingsConnection(settings: {
+  apiKey?: string;
+  apiUrl?: string;
+  model?: string;
+}) {
+  return callAPI('/settings/validate', {
+    method: 'POST',
     body: JSON.stringify(settings),
   });
 }

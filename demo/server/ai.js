@@ -159,6 +159,7 @@ async function splitTopics({ apiKey, apiUrl, model, messages }) {
     model,
     systemPrompt: finalPrompt,
     userPrompt: '请按 JSON 格式输出话题切分结果。',
+    maxTokens: 2000,
   });
   console.log(`[Pipeline] 话题切分器原始返回:`, response.slice(0, 300));
 
@@ -272,7 +273,8 @@ async function classifyIntent({ apiKey, apiUrl, model, messages, platform }) {
     model,
     systemPrompt,
     userPrompt: `请判断以下对话的意图：\n\n${conversationText}`,
-    temperature: 0.1, // 分类需要确定性输出
+    temperature: 0.1,
+    maxTokens: 100,
   });
 
   // 提取英文 key（去除可能的空白和 markdown）
@@ -305,6 +307,7 @@ async function generateCard({ apiKey, apiUrl, model, messages, platform, intentD
     model,
     systemPrompt: finalPrompt,
     userPrompt: '请按 JSON 格式输出知识卡片。',
+    maxTokens: 6000,
   });
 
   // 解析 JSON（处理可能嵌套代码块的情况）
@@ -323,7 +326,22 @@ async function generateCard({ apiKey, apiUrl, model, messages, platform, intentD
     }
   }
 
-  const parsed = JSON.parse(jsonStr);
+  // 解析 JSON，失败时尝试修复
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (parseErr) {
+    const repaired = tryRepairJSON(jsonStr);
+    if (repaired) {
+      try {
+        parsed = JSON.parse(repaired);
+      } catch (_e2) {
+        throw new Error(`JSON 解析失败: ${parseErr.message}`);
+      }
+    } else {
+      throw new Error(`JSON 解析失败: ${parseErr.message}`);
+    }
+  }
 
   // 统一 card_type 为中文值
   const cardType = normalizeCardType(parsed.card_type, cardTypeZh);
@@ -377,10 +395,14 @@ function deduplicateCards(cards) {
       const titleJaccard = jaccardSimilarity(t1, t2);
       const titleContains = t1.includes(t2) || t2.includes(t1);
 
-      // narrative 前 100 字关键词重叠（辅助判断）
-      const n1 = (existing.narrative || '').slice(0, 100);
-      const n2 = (card.narrative || '').slice(0, 100);
+      // narrative 前 200 字重叠（加大长度，捕捉更多语义）
+      const n1 = (existing.narrative || '').slice(0, 200);
+      const n2 = (card.narrative || '').slice(0, 200);
       const narrativeSimilar = n1 && n2 ? jaccardSimilarity(n1, n2) : 0;
+
+      // 同一次 capture 的特殊判断：narrative 都提到相同的平台/对话线索
+      const sameCapture = card.source?.conversation_id &&
+        existing.source?.conversation_id === card.source.conversation_id;
 
       // 综合判断：
       // 情况 1：问题高度相似（>=0.7）且标题也有一定相似度 → 去重
@@ -394,6 +416,14 @@ function deduplicateCards(cards) {
       // 情况 5：问题完全一样 + narrative 有一定重叠 → 去重
       if (questionSimilar >= 0.9 && narrativeSimilar >= 0.2) return true;
 
+      // 情况 6（同一次 capture）：narrative 前 200 字字符集重叠度 >= 0.5 → 去重
+      // 同一次 capture 产出的卡片更容易标题不同但内容实质重叠
+      if (sameCapture && narrativeSimilar >= 0.5) return true;
+
+      // 情况 7：narrative 高度重叠（>=0.65）无论标题如何 → 去重
+      // 防止 "自律的本质与困境" vs "自律的底层逻辑" 这类换标题但同内容
+      if (narrativeSimilar >= 0.65) return true;
+
       return false;
     });
 
@@ -401,7 +431,7 @@ function deduplicateCards(cards) {
       result.push(card);
     } else {
       console.log(`[Pipeline] 去重: 丢弃卡片 "${card.title}"，与现有卡片 "${isDuplicate.title}" 近似重复`);
-      console.log(`[Pipeline] 去重详情: title相似度=${jaccardSimilarity((isDuplicate.title||'').replace(/\s/g,''), (card.title||'').replace(/\s/g,'')).toFixed(2)}, question相似度=${jaccardSimilarity((isDuplicate.original_question||'').replace(/\s/g,''), (card.original_question||'').replace(/\s/g,'')).toFixed(2)}`);
+      console.log(`[Pipeline] 去重详情: title相似度=${jaccardSimilarity((isDuplicate.title||'').replace(/\s/g,''), (card.title||'').replace(/\s/g,'')).toFixed(2)}, question相似度=${jaccardSimilarity((isDuplicate.original_question||'').replace(/\s/g,''), (card.original_question||'').replace(/\s/g,'')).toFixed(2)}, narrative相似度=${jaccardSimilarity((isDuplicate.narrative||'').slice(0,200), (card.narrative||'').slice(0,200)).toFixed(2)}`);
     }
   }
   return result;
@@ -470,6 +500,122 @@ function normalizeCardType(cardType, fallback) {
   return INTENT_MAP[cardType]?.zh || fallback;
 }
 
+// =================== JSON 修复工具函数 ===================
+
+/**
+ * 多层级 JSON 修复：处理 LLM 返回的非标准 JSON
+ * 常见错误：字面换行、未闭合引号、缺失逗号、尾部逗号、未转义字符
+ */
+function tryRepairJSON(jsonStr) {
+  // 层级 1：去除 markdown 代码块包裹
+  let s = jsonStr.trim();
+  const codeMatch = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeMatch) {
+    s = codeMatch[1].trim();
+  }
+
+  // 层级 2：确保以 { 开头、} 结尾
+  const firstBrace = s.indexOf('{');
+  const lastBrace = s.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    s = s.slice(firstBrace, lastBrace + 1);
+  } else {
+    return null;
+  }
+
+  // 层级 3：去除字符串值中的字面换行（JSON 字符串中 \n 必须是转义形式）
+  // 逐个字符遍历，识别字符串边界
+  s = fixLiteralNewlines(s);
+
+  // 层级 4：补全未闭合的引号
+  s = fixUnclosedQuotes(s);
+
+  // 层级 5：去除尾部逗号（如 {"a": 1, }）
+  s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  // 层级 6：修复缺失逗号（如 `"key": "value"\n  "next"` 缺少逗号）
+  s = s.replace(/("|\d|}|\])(\s*\n+\s*")/g, '$1,$2');
+  s = s.replace(/("|\d|}|\])(\s*\{\s*")/g, '$1,$2');
+
+  // 层级 7：修复未闭合的括号
+  const openBraces = (s.match(/{/g) || []).length;
+  const closeBraces = (s.match(/}/g) || []).length;
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    s += '}';
+  }
+  const openBrackets = (s.match(/\[/g) || []).length;
+  const closeBrackets = (s.match(/\]/g) || []).length;
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    s += ']';
+  }
+
+  return s;
+}
+
+/** 将 JSON 字符串值中的字面换行替换为空格 */
+function fixLiteralNewlines(s) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escaped = true;
+      result += ch;
+      continue;
+    }
+    if (ch === '"' && !escaped) {
+      inString = !inString;
+      result += ch;
+      continue;
+    }
+    if (inString && (ch === '\n' || ch === '\r')) {
+      // 在字符串内部遇到换行，替换为空格
+      result += ' ';
+      continue;
+    }
+    result += ch;
+  }
+  return result;
+}
+
+/** 补全未闭合的字符串引号 */
+function fixUnclosedQuotes(s) {
+  let inString = false;
+  let escaped = false;
+  let lastQuoteIdx = -1;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      if (inString) {
+        inString = false;
+      } else {
+        inString = true;
+        lastQuoteIdx = i;
+      }
+    }
+  }
+  // 如果结束时还在字符串内部，补全引号
+  if (inString && lastQuoteIdx >= 0) {
+    // 找到最后一个未闭合的引号位置，在其后补 "
+    return s.slice(0, lastQuoteIdx + 1) + '"' + s.slice(lastQuoteIdx + 1);
+  }
+  return s;
+}
+
 // =================== 向后兼容（旧版单步调用） ===================
 
 /**
@@ -500,9 +646,12 @@ async function summarizeConversation({ apiKey, apiUrl, model, messages, platform
 
 // =================== HTTP 调用 ===================
 
-function callOpenAICompatible({ apiKey, apiUrl, model, systemPrompt, userPrompt, temperature = 0.3 }) {
+function callOpenAICompatible({ apiKey, apiUrl, model, systemPrompt, userPrompt, temperature = 0.3, maxTokens = 4000 }) {
   return new Promise((resolve, reject) => {
-    const url = new URL(`${apiUrl}/chat/completions`);
+    // 规范化 API URL 路径：确保 baseUrl 以 /v1 结尾
+    const normalizedBase = apiUrl.replace(/\/$/, ''); // 去掉尾部 /
+    const baseUrl = normalizedBase.endsWith('/v1') ? normalizedBase : `${normalizedBase}/v1`;
+    const url = new URL(`${baseUrl}/chat/completions`);
 
     const body = JSON.stringify({
       model,
@@ -511,7 +660,7 @@ function callOpenAICompatible({ apiKey, apiUrl, model, systemPrompt, userPrompt,
         { role: 'user', content: userPrompt },
       ],
       temperature,
-      max_tokens: 2000,
+      max_tokens: maxTokens,
     });
 
     const isHttps = url.protocol === 'https:';
@@ -559,4 +708,4 @@ function callOpenAICompatible({ apiKey, apiUrl, model, systemPrompt, userPrompt,
   });
 }
 
-module.exports = { summarizeConversation, processPipeline };
+module.exports = { summarizeConversation, processPipeline, callOpenAICompatible };

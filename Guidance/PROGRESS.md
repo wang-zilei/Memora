@@ -209,6 +209,20 @@
 - **验证结果：** 天气 × 2 + 余华 → 2 张卡片 ✓ | Docker × 3 + PPT × 2 → 2 张卡片 ✓ | test-pipeline.js 全部通过
 **产出文件：** `docs/prompts/topic-split/prompt.md`、`demo/server/ai.js`、`Guidance/bug-log.md`
 
+## 2026-05-25 — 设置页重构（视觉+交互+验证）
+
+**主题：** 设置页全面重构 — 水墨/米色风格 + 齿轮图标 + 测试连接 + 动态模型预设
+**关键变更：**
+- **侧边栏设置按钮**：去掉边框，改用 Material Symbols `settings` 齿轮图标
+- **返回按钮**：从 `← 返回` 改为 `icon-btn` + `arrow_back`（与详情页一致）
+- **页面布局**：新增米色卡片容器（`settings-card`），表单内容不再空旷
+- **API 配置**：API 地址下拉保留 OpenAI/DeepSeek/智谱GLM/自定义；模型下拉根据 API 地址动态切换预设模型（OpenAI → gpt 系列 / DeepSeek → deepseek 系列 / 智谱 → glm 系列），均支持自定义输入
+- **测试连接**：新增"测试连接"按钮，调用 `POST /api/settings/validate`，返回成功/失败状态和分类错误信息
+- **保存按钮**：紫色大方块 → 紧凑型水墨深色（`#5a4a42`）
+- **快速开始指南**：从开发者模式改为用户模式（配置 API → 安装扩展 → 打开 LLM 对话 → 查看卡片）
+- **后端 validate 修复**：从调用完整 AI Pipeline 改为直接调用 `callOpenAICompatible()` 做最低限度 API 验证，错误分类为连接失败/Key 无效/地址错误
+**产出文件：** `demo/web/src/api.ts`、`demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/index.js`、`demo/server/ai.js`
+
 ## 2026-05-25 — 侧边栏视觉优化（纯视觉，不改交互）
 
 **主题：** 侧边栏观感优化
@@ -240,6 +254,17 @@
 - 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`
 
+## 2026-05-25 — 收藏 & 标签交互完善
+
+**主题：** 完善收藏按钮和标签筛选的交互体验
+**关键变更：**
+- **收藏按钮变黄**：详情页三点菜单中收藏按钮添加 `dropdown-item--starred` class，`starred: true` 时五角星和文字变为琥珀色（`#f59e0b`）
+- **标签可点击筛选**：侧边栏标签从纯展示改为可点击，点击后自动切换到列表页并筛选该标签，再次点击取消
+- **标签激活态**：当前选中的标签芯片变为深色背景 + 白字（`tag-chip--active`）
+- **筛选指示条**：卡片列表页搜索栏下方新增标签筛选指示条（`tag-filter-bar`），显示当前筛选标签和清除按钮
+- **后端支持**：`/api/cards` 新增 `tag` 查询参数，`db.js` 中 `getKnowledgeCards` 支持按标签精确匹配筛选
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/index.js`、`demo/server/db.js`
+
 ## 2026-05-25 — 卡片详情页全面重构（从头构建）
 
 **主题：** 点击卡片后的详情页从头构建，Tab 式布局 + 干净排版
@@ -252,3 +277,80 @@
 - **视觉**：卡片 #fefefe 背景 + subtle box-shadow 区分页面底色
 - 三点菜单收藏/删除复用现有 `updateCard()` API（PUT /cards/:id 传 `{starred: true/false}` 或 `{title: newValue}`）
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
+
+## 2026-05-25 — 悬浮球魔法棒图标 + 状态动画 + 闲置提醒 + 简洁报错
+
+**主题：** 悬浮球视觉全面升级 — emoji 改为 SVG 魔法棒 + 4 种状态反馈 + 3 分钟定时提醒
+**关键变更：**
+- `content.js`：悬浮球图标从 🧠 改为 SVG 魔法棒（Material Symbols auto_fix Rounded 风格），零依赖纯内联 SVG
+- **4 种状态反馈**：
+  - 默认态：紫色渐变 + 魔法棒 SVG，hover 放大 1.1x
+  - 抓取中：琥珀色渐变 + 魔法棒旋转动画（0.8s 一圈循环）
+  - 成功：绿色渐变 + ✓ 对勾 SVG，tooltip 显示"已生成 N 张卡片"
+  - 失败：红色渐变 + ✕ 叉号 SVG，tooltip 显示简洁报错
+- **闲置提醒**：页面停留 3 分钟触发弹跳动画 + tooltip 提醒保存对话，DOM 变化时自动重置计时器（MutationObserver），用户点击后重置
+- **简洁报错分类**：额度不足 → "API 额度不足，请检查设置后刷新页面" | Key 无效 → "API Key 无效，请检查设置后刷新页面" | 后端未启动 → "后端未启动，请刷新页面" | DOM 异常 → "页面结构异常，请刷新页面重试"
+**产出文件：** `demo/extension/content.js`
+
+## 2026-05-25 — 卡片导出功能实现
+
+**主题：** 详情页添加导出功能（TXT/PDF/图片三种格式）
+**关键变更：**
+- `App.tsx`：CardDetail 新增 `handleExport` 函数，支持导出为 TXT（纯文本拼接）/ PDF（jsPDF 生成）/ 图片（html2canvas 截图 `.detail-card` 元素）
+- 按钮位置：编辑标题 / 导出 / 更多三点菜单三者从左到右排列，编辑模式下仅显示保存/取消
+- 导出内容：标题 + 核心问题 + 关键结论 + 标签 + 来源，PDF 图片下载自动触发
+- `package.json`：新增 `jspdf` + `html2canvas` 依赖
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/package.json`
+
+## 2026-05-25 — 侧边栏用户区域移除
+
+**主题：** 去掉侧边栏底部用户头像 + 用户名元素，设置按钮左对齐放在原本用户的位置
+**关键变更：**
+- `App.tsx` Sidebar 组件：删除 `user-profile` div（头像 + "用户"文字），设置按钮去掉"设置"文字标签
+- `index.css`：`.sidebar-footer` 改为 `justify-content: flex-start` 左对齐；删除 `.user-profile`、`.avatar-placeholder`、`.user-name` 样式
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
+
+## 2026-05-25 — 收藏/统计页视觉优化 + 卡片导出方案
+
+**主题：** 收藏页标题改黑体、统计页标题格式对齐 + 用户区功能取舍讨论
+**关键变更：**
+- 收藏页标题从华文中宋改为黑体，统计页改为相同样式（黑体 28px + 底部黑线）
+- 用户区讨论：加账号/云存储=项目性质改变（需要云存储、账号验证、运营）；不加=用户没安全感。中间方案待定
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
+
+## 2026-05-25 — 卡片导出功能（待执行）
+
+**主题：** 卡片详情页添加导出按钮（TXT/PDF/图片），所有实现需兼容 Tauri 客户端迁移
+**方案要点：**
+- 导出内容：仅详情页概览（标题 + 关键结论 + 标签 + 来源），不导原始对话
+- 存储路径：Tauri 端用 `dialog.open` 让用户自选路径，demo 端用浏览器下载机制模拟
+- 格式实现：TXT（纯文本拼接，零依赖）/ PDF（`jsPDF` 生成）/ 图片（`html2canvas` 截图 DOM）
+- 迁移策略：demo 阶段用 `window.download` 触发下载，Tauri 迁移后替换为 `dialog.open` + `tauri-plugin-fs` 写入文件
+- 依赖：`jspdf` + `html2canvas`，均通过 npm 安装，Tauri 端可直接复用
+**待改文件：** `demo/web/src/App.tsx`（CardDetail 加导出按钮）、`demo/web/package.json`（添加 jspdf + html2canvas）
+
+## 2026-05-25 — 话题拆分 Prompt 强化 + Dedup 联合修复
+
+**主题：** 修复同一次 capture 产生大量近似卡片的问题（天气+余华→5张、效率→13张、年龄/自律→30张）
+**关键变更：**
+- **话题切分 Prompt 强化**（`docs/prompts/topic-split/prompt.md`）：新增"同主题下的子话题不拆分"原则，举例说明个人效率提升下的 PARA/时间块/习惯回路属于同一大主题不拆分；新增示例 4 展示具体不拆分场景
+- **去重逻辑加强**（`demo/server/ai.js` `deduplicateCards()`）：narrative 比较从 100 字 → 200 字；新增情况 6（同一次 capture 的卡片 narrative 重叠 >= 0.5 去重）；新增情况 7（任意两张同类型卡片 narrative 重叠 >= 0.65 去重）；去重日志输出 narrative 相似度
+**产出文件：** `docs/prompts/topic-split/prompt.md`、`demo/server/ai.js`、`Guidance/bug-log.md`
+
+## 2026-05-25 — Tauri 客户端开发 + ZIP 一键分发方案（待执行）
+
+**主题：** Demo 验证通过后，启动 Tauri 2.0 桌面客户端开发 + ZIP 一键分发
+**分发方案：**
+- 客户端 + 扩展一起打包为 `release-vX.X.zip`，用户下载解压后两步安装
+- 扩展不走 Chrome Web Store，采用开发者模式加载本地 extension 目录
+- 客户端首次启动引导用户配置扩展开发者模式加载
+- 客户端内置扩展版本检查 + 更新提醒机制
+**待办清单：**
+1. Tauri 2.0 脚手架搭建 + SQLite 数据库迁移（JSON → SQLite）
+2. 扩展与客户端通信方案选型（HTTP localhost vs Native Messaging）
+3. 客户端功能对齐 demo 全部 API（卡片 CRUD / 筛选 / 统计 / 收藏）
+4. 扩展打包脚本：自动从 extension/ 目录生成 ZIP + README 安装指引
+5. Windows .exe 代码签名（解决 SmartScreen 拦截）
+6. 安装引导页 + 扩展配置向导（首次启动）
+7. 客户端自动更新机制（tauri-plugin-updater）
+**产出文件：** `src-tauri/`、`demo/extension/`（需适配）、`Guidance/architecture.md`

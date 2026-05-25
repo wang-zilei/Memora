@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-05-25 — 悬浮球全面升级
+
+**主题：** 魔法棒 SVG 图标 + 状态动画 + 闲置提醒 + 简洁报错
+**关键结论：** 悬浮球从 🧠 emoji 改为 SVG 魔法棒，新增 4 种状态（默认/抓取中/成功/失败）各有颜色+图标反馈，闲置 3 分钟弹跳提醒，报错按类型分类显示简洁文案
+**产出文件：** `demo/extension/content.js`、`Guidance/PROGRESS.md`
+
+## 2026-05-25 — 收藏/统计页视觉优化 + 用户区产品讨论
+
+**主题：** 收藏页标题改黑体、统计页标题格式对齐 + 用户区功能取舍讨论
+**关键结论：**
+- 收藏页标题从华文中宋改为黑体，统计页改为相同样式（黑体 28px + 底部黑线）
+- 用户区讨论：加账号/云存储=项目性质改变；不加=用户没安全感。折中方案：卡片导出功能（TXT/PDF/图片），用户自选路径保存，所有实现兼容 Tauri 迁移
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
+
+## 2026-05-25 — 设置页 API 配置简化 + URL 规范化 + 卡片 JSON 解析修复
+
+**主题：** API 配置改为纯文本输入框 + 自动补 /v1 + 收藏/JSON 解析修复
+**关键结论：**
+- API Key/API 地址/模型三个字段改为纯文本输入框，去掉所有预设下拉
+- callOpenAICompatible 自动处理 /v1 前缀，用户填 `https://api.deepseek.com` 或带 /v1 均可
+- updateKnowledgeCard 补全 starred/archived 字段支持，收藏功能修复
+- generateCard 增加 JSON 二次修复，LLM 返回格式不规范 JSON 时自动修复
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/ai.js`、`demo/server/db.js`
+
+## 2026-05-25 — 收藏 & 标签交互完善 + 设置页问题修复
+
+**主题：** 收藏按钮变黄 + 标签点击筛选 + 模型下拉动态化 + 测试连接错误修正
+**关键变更：**
+- 收藏按钮 starred 状态下五角星变琥珀色（dropdown-item--starred + card-menu-item--starred）
+- 侧边栏标签从纯展示改为可点击，点击后自动切到列表页并筛选该标签，激活态芯片变深色
+- 卡片列表页新增标签筛选指示条（tag-filter-bar），显示当前筛选和清除按钮
+- 模型下拉改为根据 API 地址动态切换预设（OpenAI→gpt系列 / DeepSeek→deepseek系列 / 智谱→glm系列），支持自定义输入
+- 后端 validate 端点从调用完整 AI Pipeline 改为直接 callOpenAICompatible 验证，错误分类为连接失败/Key无效/地址错误
+- 后端 /api/cards 新增 tag 筛选参数，db.js getKnowledgeCards 支持按标签精确匹配
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/index.js`、`demo/server/db.js`
+
 ## 2026-05-21 — 按用户级规范重构 Guidance 文档体系
 
 **主题：** 工作区文档结构规范化
@@ -153,6 +189,16 @@
 - 示例全部更新：增加追问与递进的叙事
 **产出文件：** 全部 10 个 prompt + `card-design-spec.md` + 进度文档
 
+## 2026-05-25 — 设置页重构 + 收藏标签交互完善
+
+**主题：** 设置页水墨/米色风格重构 + 收藏按钮变黄 + 标签筛选
+**关键结论：**
+1. 设置页齿轮图标 + 返回 icon-btn + 米色卡片容器 + 测试连接 + 动态模型预设 + 用户模式指南
+2. 后端 validate 修复：不调完整 Pipeline，改为直接 callOpenAICompatible 做 API 验证
+3. 收藏按钮变黄：详情页三点菜单中 starred 状态添加 dropdown-item--starred 类
+4. 标签筛选：侧边栏标签可点击筛选卡片，激活态芯片变深色，列表页显示筛选条
+**产出文件：** `demo/web/src/api.ts`、`demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/index.js`、`demo/server/ai.js`、`demo/server/db.js`
+
 ## 2026-05-25 — 前端侧边栏重构 + 新页面
 
 **主题：** 侧边栏从 240px 白底 → 25% 灰底质感设计，新增收藏/统计页面
@@ -188,6 +234,16 @@
 - 后端 db.js 列表接口新增 narrative 字段返回，字段名从 createdAt 改为 created_at 对齐前端类型
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/web/src/types.ts`、`demo/server/db.js`
 
+## 2026-05-25 — 设置页重构 + 测试连接 + 模型动态预设
+
+**主题：** 设置页全面重构 — 水墨/米色风格 + 齿轮图标 + 测试连接 + 动态模型预设
+**关键变更：**
+- 侧边栏设置按钮去边框改齿轮 icon；返回按钮改为 icon-btn
+- 页面加米色卡片容器、API 地址下拉 + 模型根据提供商动态切换预设 + 自定义输入
+- 新增"测试连接"按钮，后端 validate 端点从调用完整 Pipeline 改为直接 callOpenAICompatible 验证
+- 快速开始指南从开发者模式改为用户模式
+**产出文件：** `demo/web/src/api.ts`、`demo/web/src/App.tsx`、`demo/web/src/index.css`、`demo/server/index.js`、`demo/server/ai.js`
+
 ## 2026-05-25 — 详情页标题字号微调 + 字体改为系统字体
 
 **主题：** 详情页标题从华文中宋 28px/letter-spacing 2px → 系统字体 24px/letter-spacing 0.5px
@@ -201,3 +257,20 @@
 **主题：** 详情页从头构建，Tab 式布局 + 可编辑标题 + 三点菜单
 **关键结论：** 废弃原有混乱布局，新增概览/原始对话 Tab，标题可编辑（STZhongsong 28px/900/letter-spacing 2px），收藏/删除复用 updateCard API
 **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`
+
+## 2026-05-25 — 话题拆分+去重联合修复
+
+**主题：** 修复同一次 capture 产生大量近似卡片（天气+余华→5张、效率→13张、年龄/自律→30张）
+**关键结论：**
+- topic-split prompt 新增"同主题下的子话题不拆分"原则 + 具体示例（个人效率提升下 PARA/时间块/习惯回路不拆分）
+- deduplicateCards 加强：narrative 比较长度从 100→200 字，新增同一次 capture 的卡片 narrative 重叠 >= 0.5 去重，新增任意两张同类型卡片 narrative 重叠 >= 0.65 去重
+**产出文件：** `docs/prompts/topic-split/prompt.md`、`demo/server/ai.js`、`Guidance/bug-log.md`
+
+## 2026-05-25 — Tauri 客户端开发 + ZIP 一键分发讨论
+
+**主题：** Demo 完成后下一步规划 — Tauri 桌面客户端 + 扩展 ZIP 一键分发
+**关键结论：**
+- 扩展不上架 Chrome Web Store，与客户端一起打包为 release-vX.X.zip
+- 用户解压后安装 .exe + 开发者模式加载 extension 目录
+- 客户端内置扩展版本检查 + 更新提醒
+**产出文件：** `Guidance/PROGRESS.md` 追加待办清单

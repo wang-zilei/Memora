@@ -54,26 +54,59 @@
 
   // ============ 悬浮球 UI ============
 
+  // Magic Wand SVG（Material Symbols auto_fix Rounded 风格）
+  const WAND_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 4V2"/>
+    <path d="M15 16v-2"/>
+    <path d="M8 9h2"/>
+    <path d="M20 9h2"/>
+    <path d="M17.8 11.8L19 13"/>
+    <path d="M15 9h0"/>
+    <path d="M17.8 6.2L19 5"/>
+    <path d="M11 6.2L9.7 5"/>
+    <path d="M11 11.8L9.7 13"/>
+    <path d="M8 21l7.5-7.5"/>
+  </svg>`;
+
+  const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 6L9 17l-5-5"/>
+  </svg>`;
+
+  const X_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 6L6 18"/>
+    <path d="M6 6l12 12"/>
+  </svg>`;
+
+  // 默认紫色渐变（统一调色盘）
+  const GRAD_DEFAULT = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+  const GRAD_LOADING = 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)';
+  const GRAD_SUCCESS = 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)';
+  const GRAD_ERROR = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+
   const ball = document.createElement('div');
   ball.id = 'llm-kb-float-ball';
-  ball.innerHTML = '🧠';
-  ball.title = `点击抓取${currentPlatform.name}对话`;
+  ball.innerHTML = WAND_SVG;
+  ball.title = `点击保存${currentPlatform.name}对话`;
   ball.style.cssText = `
     position: fixed; bottom: 80px; right: 24px; width: 48px; height: 48px;
-    border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white; display: flex; align-items: center; justify-content: center;
-    font-size: 22px; cursor: pointer; z-index: 2147483647;
+    border-radius: 50%; background: ${GRAD_DEFAULT};
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 2147483647;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;
     user-select: none;
   `;
 
   ball.addEventListener('mouseenter', () => {
-    ball.style.transform = 'scale(1.1)';
-    ball.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+    if (!isCapturing) {
+      ball.style.transform = 'scale(1.1)';
+      ball.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+    }
   });
   ball.addEventListener('mouseleave', () => {
-    ball.style.transform = 'scale(1)';
-    ball.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+    if (!isCapturing) {
+      ball.style.transform = 'scale(1)';
+      ball.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+    }
   });
 
   const tooltip = document.createElement('div');
@@ -308,13 +341,82 @@
 
   let isCapturing = false;
 
+  // 添加旋转动画样式（仅一次）
+  const styleId = 'llm-kb-float-ball-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes llm-kb-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      @keyframes llm-kb-bounce {
+        0%, 100% { transform: scale(1); }
+        25% { transform: scale(1.15); }
+        50% { transform: scale(1); }
+        75% { transform: scale(1.1); }
+      }
+      @keyframes llm-kb-pulse {
+        0%, 100% { box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+        50% { box-shadow: 0 4px 24px rgba(102, 126, 234, 0.7); }
+      }
+      .llm-kb-ball-spinning svg { animation: llm-kb-spin 0.8s linear infinite; }
+      .llm-kb-ball-bouncing { animation: llm-kb-bounce 0.6s ease 3; }
+      .llm-kb-ball-pulsing { animation: llm-kb-pulse 2s ease-in-out infinite; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // ---- 闲置提醒定时器（3 分钟） ----
+  let idleTimer = null;
+  let remindedCount = 0;
+
+  function resetIdleTimer() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      remindedCount += 1;
+      // 弹跳动画吸引注意
+      ball.classList.add('llm-kb-ball-bouncing');
+      ball.addEventListener('animationend', () => {
+        ball.classList.remove('llm-kb-ball-bouncing');
+      }, { once: true });
+      // 悬浮脉冲背景
+      ball.classList.add('llm-kb-ball-pulsing');
+
+      if (remindedCount === 1) {
+        showTooltip(`${currentPlatform.name} 聊了 3 分钟啦，点击魔法棒保存对话`, 5000);
+      } else {
+        showTooltip(`又有新对话了，点击魔法棒保存吧`, 5000);
+      }
+    }, 3 * 60 * 1000); // 3 分钟
+  }
+
+  // 页面 DOM 有变化时重置计时器（检测新消息）
+  const observer = new MutationObserver(() => {
+    if (isCapturing) return;
+    resetIdleTimer();
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+  resetIdleTimer();
+
+  // 点击/拖动时重置闲置计时器
+  ball.addEventListener('click', () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    remindedCount = 0;
+    ball.classList.remove('llm-kb-ball-pulsing');
+  }, true);
+
   ball.addEventListener('click', async () => {
     if (isCapturing) { showTooltip('正在抓取中，请稍候...'); return; }
 
     isCapturing = true;
-    ball.innerHTML = '⏳';
-    ball.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
-    showTooltip(`正在抓取${currentPlatform.name}对话...`);
+    ball.classList.remove('llm-kb-ball-pulsing');
+    ball.innerHTML = WAND_SVG;
+    ball.classList.add('llm-kb-ball-spinning');
+    ball.style.background = GRAD_LOADING;
+    ball.style.transform = 'scale(1)';
+    showTooltip(`正在抓取${currentPlatform.name}...`);
+
+    let restoreTimeout = 4000;
 
     try {
       const captureResult = await captureConversation(currentPlatform.id);
@@ -341,27 +443,57 @@
       }
 
       if (response && response.success) {
-        ball.innerHTML = '✅';
-        ball.style.background = 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)';
-        showTooltip('抓取成功！知识卡片已生成', 4000);
+        // 检查是否有待总结或总结失败状态
+        if (response.needsApiKey) {
+          ball.classList.remove('llm-kb-ball-spinning');
+          ball.innerHTML = X_SVG;
+          ball.style.background = GRAD_ERROR;
+          showTooltip('对话已保存，但缺少 API Key，无法总结', 5000);
+        } else if (response.aiError) {
+          ball.classList.remove('llm-kb-ball-spinning');
+          ball.innerHTML = X_SVG;
+          ball.style.background = GRAD_ERROR;
+          showTooltip('对话已保存，但总结失败，请检查设置', 5000);
+        } else {
+          const count = response.cards?.length || 1;
+          ball.classList.remove('llm-kb-ball-spinning');
+          ball.innerHTML = CHECK_SVG;
+          ball.style.background = GRAD_SUCCESS;
+          showTooltip(`已生成 ${count} 张卡片`, 3000);
+        }
       } else {
-        ball.innerHTML = '❌';
-        ball.style.background = 'linear-gradient(135deg, #f5576c 0%, #ff6a88 100%)';
-        showTooltip(`后端处理失败: ${response?.error || '未知错误'}`, 5000);
+        throw new Error(response?.error || '后端处理失败');
       }
     } catch (error) {
       console.error('[LLM知识库] 抓取异常:', error);
-      ball.innerHTML = '❌';
-      ball.style.background = 'linear-gradient(135deg, #f5576c 0%, #ff6a88 100%)';
-      showTooltip(`抓取失败: ${error.message}`, 5000);
+      const msg = error.message || '';
+      let tip = '操作失败，请检查后刷新页面重试';
+      // 简洁报错：根据关键词分类
+      if (/402|quota|billing|balance|额度/.test(msg)) {
+        tip = 'API 额度不足，请检查设置后刷新页面';
+      } else if (/401|invalid.*key|unauthorized|认证/.test(msg)) {
+        tip = 'API Key 无效，请检查设置后刷新页面';
+      } else if (/ECONNREFUSED|connect.*fail|未响应|reach/.test(msg)) {
+        tip = '后端未启动，请刷新页面';
+      } else if (/DOM.*提取|未检测到|未能.*提取/.test(msg)) {
+        tip = '页面结构异常，请刷新页面重试';
+      }
+
+      ball.classList.remove('llm-kb-ball-spinning');
+      ball.innerHTML = X_SVG;
+      ball.style.background = GRAD_ERROR;
+      showTooltip(tip, 5000);
+      restoreTimeout = 6000;
     }
 
     setTimeout(() => {
       isCapturing = false;
-      ball.innerHTML = '🧠';
-      ball.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-    }, 3000);
-  });
+      ball.classList.remove('llm-kb-ball-spinning');
+      ball.innerHTML = WAND_SVG;
+      ball.style.background = GRAD_DEFAULT;
+      ball.style.transform = 'scale(1)';
+    }, restoreTimeout);
+  }, true);
 
   async function captureConversation(platform) {
     switch (platform) {
