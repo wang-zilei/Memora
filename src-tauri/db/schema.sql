@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS knowledge_cards (
     original_question       TEXT DEFAULT '',
     card_type               TEXT NOT NULL DEFAULT 'other',  -- 10 个意图大类
 
+    narrative               TEXT DEFAULT '',                -- 卡片叙事内容（主展示区）
+    full_output             TEXT,                           -- 完整产出（content_creation / text_processing 专用）
+    summarize_error         TEXT,                           -- 总结失败原因，null = 正常
+
     insights_json           TEXT DEFAULT '[]',              -- JSON array
     outputs_json            TEXT DEFAULT '[]',              -- JSON array
     tags_json               TEXT DEFAULT '[]',              -- JSON array (parent/child 层级标签)
@@ -82,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_cards_review_date  ON knowledge_cards(review_sche
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
     title,
     original_question,
+    narrative,
     insights_json,
     outputs_json,
     clean_messages_json,
@@ -91,8 +96,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
 
 -- FTS 触发器
 CREATE TRIGGER IF NOT EXISTS cards_fts_insert AFTER INSERT ON knowledge_cards BEGIN
-    INSERT INTO cards_fts(rowid, title, original_question, insights_json, outputs_json, clean_messages_json)
-    VALUES (new.rowid, new.title, new.original_question, new.insights_json, new.outputs_json, new.clean_messages_json);
+    INSERT INTO cards_fts(rowid, title, original_question, narrative, insights_json, outputs_json, clean_messages_json)
+    VALUES (new.rowid, new.title, new.original_question, new.narrative, new.insights_json, new.outputs_json, new.clean_messages_json);
 END;
 
 CREATE TRIGGER IF NOT EXISTS cards_fts_delete AFTER DELETE ON knowledge_cards BEGIN
@@ -103,6 +108,7 @@ CREATE TRIGGER IF NOT EXISTS cards_fts_update AFTER UPDATE ON knowledge_cards BE
     UPDATE cards_fts
     SET title = new.title,
         original_question = new.original_question,
+        narrative = new.narrative,
         insights_json = new.insights_json,
         outputs_json = new.outputs_json,
         clean_messages_json = new.clean_messages_json

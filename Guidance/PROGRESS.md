@@ -354,3 +354,16 @@
 6. 安装引导页 + 扩展配置向导（首次启动）
 7. 客户端自动更新机制（tauri-plugin-updater）
 **产出文件：** `src-tauri/`、`demo/extension/`（需适配）、`Guidance/architecture.md`
+
+## 2026-05-25 — Tauri 客户端 main.rs 编译修复 + AI Pipeline 基础版
+
+**主题：** 修复 main.rs 全部编译错误，补齐缺失 API（tags/statistics/summarize/status），AI Pipeline 基础版就绪
+**关键变更：**
+- **main.rs 完全重写**：废弃 `tauri_plugin_sql::Database`（v2 不存在该类型），改用 `sqlx::SqlitePool` 直连，所有 SQL 语法统一为 SQLite `?N` 参数占位符
+- **Cargo.toml**：新增 `sqlx`（runtime-tokio + sqlite + macros）、`indexmap`、`tokio`（rt-multi-thread）依赖
+- **缺失 API 补齐**：新增 `get_tags`（标签聚合）、`get_statistics`（统计面板）、`get_status`（状态检查）、`summarize_card`（AI 总结触发）
+- **schema.sql 更新**：新增 `narrative`（卡片叙事正文）、`full_output`（完整产出）、`summarize_error`（失败标记）字段；FTS 表同步加入 `narrative`
+- **AI Pipeline 基础版**：`run_ai_pipeline()` 用 reqwest 调用 OpenAI 兼容接口，支持 JSON 提取/修复，返回 `PipelineCardResult`（待完善：prompt 文件加载、话题切分、意图分类、去重）
+- **前端 api.ts**：补齐 Tauri 路由（/tags、/statistics、/cards/:id/summarize、/status），`summarizeCard` 支持传入 settings 参数
+**验证结果：** `cargo check` 通过，0 errors 0 warnings
+**产出文件：** `src-tauri/src/main.rs`（完全重写）、`src-tauri/Cargo.toml`、`src-tauri/db/schema.sql`、`demo/web/src/api.ts`
