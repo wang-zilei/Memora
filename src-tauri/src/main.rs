@@ -388,12 +388,127 @@ async fn do_capture(pool: &SqlitePool, payload: &RawConversation) -> Result<Capt
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(CaptureResponse {
-        success: true,
-        message: "对话已抓取并保存".to_string(),
-        card_id,
-        needs_api_key: true,
-    })
+    // 4. Check if API key exists in settings
+    let api_key: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if api_key.as_ref().map_or(true, |s| s.is_empty()) {
+        return Ok(CaptureResponse {
+            success: true,
+            message: "对话已抓取并保存（待总结），请在设置中配置 API Key".to_string(),
+            card_id,
+            needs_api_key: true,
+        });
+    }
+
+    let api_url: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM settings WHERE key = 'apiUrl' AND value != '' LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let model: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM settings WHERE key = 'model' AND value != '' LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let api_url = api_url.unwrap_or_else(|| "https://api.openai.com/v1/chat/completions".to_string());
+    let model = model.unwrap_or_else(|| "gpt-4.1-nano".to_string());
+
+    // 5. Run AI Pipeline
+    match run_ai_pipeline(&api_key.unwrap(), &api_url, &model, &payload.messages, &payload.platform).await {
+        Ok(cards) if !cards.is_empty() => {
+            let first = &cards[0];
+            let tags_json = serde_json::to_string(&first.tags).unwrap_or_default();
+
+            // Update first card
+            sqlx::query(
+                "UPDATE knowledge_cards SET title = ?1, original_question = ?2, card_type = ?3, narrative = ?4, full_output = ?5, tags_json = ?6, summary_confidence = ?7, updated_at = datetime('now'), summarize_error = NULL WHERE id = ?8",
+            )
+            .bind(&first.title)
+            .bind(&first.original_question)
+            .bind(&first.card_type)
+            .bind(&first.narrative)
+            .bind(first.full_output.as_deref())
+            .bind(&tags_json)
+            .bind(first.summary_confidence.unwrap_or(0.0))
+            .bind(&card_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            // Create additional cards for extra topics
+            for c in &cards[1..] {
+                let extra_id = Uuid::new_v4().to_string();
+                let extra_tags = serde_json::to_string(&c.tags).unwrap_or_default();
+                sqlx::query(
+                    "INSERT INTO knowledge_cards (id, raw_id, clean_id, title, original_question, card_type, narrative, full_output, tags_json, review_schedule_json, source_platform, source_url, source_conversation_id, source_captured_at, raw_messages_json, clean_messages_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                )
+                .bind(&extra_id)
+                .bind(&raw_id)
+                .bind(&clean_id)
+                .bind(&c.title)
+                .bind(&c.original_question)
+                .bind(&c.card_type)
+                .bind(&c.narrative)
+                .bind(c.full_output.as_deref())
+                .bind(&extra_tags)
+                .bind(&review_json)
+                .bind(&payload.platform)
+                .bind(&payload.url)
+                .bind(&payload.conversation_id)
+                .bind(&payload.captured_at)
+                .bind(&raw_json)
+                .bind(&raw_json)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            }
+
+            Ok(CaptureResponse {
+                success: true,
+                message: format!("对话已抓取、清洗、总结，生成 {} 张知识卡片", cards.len()),
+                card_id,
+                needs_api_key: false,
+            })
+        }
+        Ok(_) => {
+            // Pipeline returned 0 cards
+            sqlx::query(
+                "UPDATE knowledge_cards SET summarize_error = 'AI 总结未产出有效内容，可能是 API 返回格式异常', updated_at = datetime('now') WHERE id = ?1",
+            )
+            .bind(&card_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            Ok(CaptureResponse {
+                success: true,
+                message: "对话已抓取并保存，但 AI 总结未产出有效内容".to_string(),
+                card_id,
+                needs_api_key: false,
+            })
+        }
+        Err(e) => {
+            sqlx::query(
+                "UPDATE knowledge_cards SET summarize_error = ?1, updated_at = datetime('now') WHERE id = ?2",
+            )
+            .bind(&e)
+            .bind(&card_id)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]
@@ -889,13 +1004,18 @@ async fn http_capture(
         Ok(resp) => Ok(Json(json!({
             "success": true,
             "message": resp.message,
-            "card_id": resp.card_id,
-            "needs_api_key": resp.needs_api_key,
+            "cardId": resp.card_id,
+            "needsApiKey": resp.needs_api_key,
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "success": false, "error": e })),
-        )),
+        Err(e) => {
+            // AI pipeline failed but card was saved — return success with aiError
+            // so the extension shows the "saved but failed" state
+            Ok(Json(json!({
+                "success": true,
+                "message": "对话已保存，但总结失败",
+                "aiError": e,
+            })))
+        }
     }
 }
 
@@ -1162,10 +1282,19 @@ async fn run_ai_pipeline(
 
     tracing::info!("[AI Pipeline] 开始调用 LLM，模型: {}", model);
 
+    // Normalize URL: ensure it ends with /chat/completions
+    let chat_url = if api_url.ends_with("/chat/completions") {
+        api_url.to_string()
+    } else if api_url.ends_with("/v1") {
+        format!("{}/chat/completions", api_url)
+    } else {
+        format!("{}/v1/chat/completions", api_url.trim_end_matches('/'))
+    };
+
     let client = reqwest::Client::new();
 
     let resp = client
-        .post(api_url)
+        .post(&chat_url)
         .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
@@ -1239,9 +1368,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
