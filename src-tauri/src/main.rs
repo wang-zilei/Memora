@@ -2172,10 +2172,17 @@ static INTENT_MAP: &[(&str, IntentInfo)] = &[
 ];
 
 fn intent_by_key(key: &str) -> IntentInfo {
-    INTENT_MAP.iter()
-        .find(|(k, _)| *k == key)
-        .map(|(_, v)| *v)
-        .unwrap_or(IntentInfo { zh: "其他", dir: "other" })
+    let key = key.trim();
+    let lower = key.to_lowercase();
+    // English key match (case-insensitive)
+    if let Some(info) = INTENT_MAP.iter().find(|(k, _)| *k == lower) {
+        return info.1;
+    }
+    // Chinese label match
+    if let Some(info) = INTENT_MAP.iter().find(|(_, v)| v.zh == key) {
+        return info.1;
+    }
+    IntentInfo { zh: "其他", dir: "other" }
 }
 
 #[derive(Debug, Clone)]
@@ -2370,12 +2377,15 @@ async fn classify_intent(
         &format!("请判断以下对话的意图：\n\n{}", conversation_text),
         0.1, 100).await?;
 
-    let key = response.trim().replace('`', "").split('\n').next().unwrap_or("").to_lowercase();
-    if intent_by_key(&key).dir != "other" || key == "other" {
-        Ok(key)
-    } else {
-        Ok("other".to_string())
-    }
+    tracing::info!("[classify_intent] raw response: {:?}", response);
+    let raw = response.trim().replace('`', "").replace('。', "").split('\n').next().unwrap_or("").to_lowercase();
+    let info = intent_by_key(&raw);
+    // Normalize to English key for consistent downstream routing
+    let key = INTENT_MAP.iter()
+        .find(|(_, v)| v.zh == info.zh && v.dir == info.dir)
+        .map(|(k, _)| k.to_string())
+        .unwrap_or_else(|| "other".to_string());
+    Ok(key)
 }
 
 // ============================================================
@@ -2401,9 +2411,10 @@ async fn generate_card(
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let final_prompt = system_prompt.replace("{{conversation}}", &conversation_text);
+    let user_prompt = format!("对话数据：\n\n{}\n\n请按 JSON 格式输出知识卡片。", conversation_text);
 
     let response = call_openai_compat(api_key, api_url, model, &final_prompt,
-        "请按 JSON 格式输出知识卡片。", 0.3, 6000).await?;
+        &user_prompt, 0.3, 6000).await?;
 
     let first_brace = response.find('{').ok_or("未找到 JSON 对象")?;
     let last_brace = response.rfind('}').ok_or("未找到 JSON 对象")?;
@@ -2636,17 +2647,22 @@ fn frontend_dist_dir() -> Option<std::path::PathBuf> {
 // ============================================================
 
 fn prompts_dir() -> std::path::PathBuf {
-    // In dev, exe is at: h:/llm-chat-knowledge-base/src-tauri/target/debug/llm-knowledge-base.exe
-    // Workspace root is: src-tauri/target/../../ = h:/llm-chat-knowledge-base/
-    // We need: workspace_root/docs/prompts/
-    // Strategy: walk up until we find docs/prompts/
+    // Dev:  exe at src-tauri/target/debug/ → walk up 2 levels to src-tauri/prompts/
+    // Prod: prompts/ bundled as resource next to exe
     let exe_dir = std::env::current_exe().ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_default();
 
+    // First check prompts/ directly next to exe (production bundle)
+    let direct = exe_dir.join("prompts");
+    if direct.exists() {
+        return direct;
+    }
+
+    // Walk up to find prompts/ (development mode)
     let mut current = exe_dir;
     for _ in 0..10 {
-        let candidate = current.join("docs").join("prompts");
+        let candidate = current.join("prompts");
         if candidate.exists() {
             return candidate;
         }
@@ -2660,7 +2676,6 @@ fn prompts_dir() -> std::path::PathBuf {
     // Fallback: current working directory
     std::env::current_dir()
         .unwrap_or_default()
-        .join("docs")
         .join("prompts")
 }
 
