@@ -1,19 +1,19 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "LLM Knowledge Base",
+  "productName": "Memora",
   "version": "0.1.0",
-  "identifier": "com.llm-knowledge-base.app",
+  "identifier": "com.memora.app",
   "build": {
     "frontendDist": "../demo/web/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../demo/web && npm run dev",
+    "beforeDevCommand": "cd /d h:\\llm-chat-knowledge-base\\demo\\web && npm run dev",
     "beforeBuildCommand": "cd demo/web && npm run build"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "LLM 知识库",
+        "title": "Memora",
         "width": 1440,
         "height": 860,
         "minWidth": 960,
