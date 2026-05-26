@@ -1,8 +1,8 @@
 /* ============ CSS Variables ============ */
 :root {
-  --sidebar-width: 25%;
-  --sidebar-min-width: 280px;
-  --sidebar-max-width: 380px;
+  --sidebar-width: 260px;
+  --sidebar-min-width: 260px;
+  --sidebar-max-width: 320px;
   --sidebar-bg: #f5f5f5;
   --sidebar-text: #1a1a2e;
   --sidebar-text-muted: #7c7f8a;
@@ -274,7 +274,7 @@ body {
 /* ============ 卡片网格 ============ */
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 16px;
 }
 
@@ -657,8 +657,9 @@ body {
   border: 1px solid #e0e0e0;
   border-radius: 20px;
   color: #666;
-  text-decoration: none;
   font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
   margin-top: 12px;
   transition: all 0.15s;
 }

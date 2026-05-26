@@ -4,6 +4,60 @@
 
 ---
 
+## E-024 — 列表页时间与详情页不一致 + "回到原始对话"按钮在 Tauri 中无反应
+
+- **日期：** 2026-05-26
+- **位置：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`src-tauri/src/main.rs`、`demo/server/index.js`
+- **现象：**
+  1. 卡片列表页显示的时间与详情页不一致（列表页字段错了）
+  2. Web 端的"回到原始对话"按钮可以打开外部链接，但 Tauri 客户端点击无反应
+- **根因：**
+  1. 列表页使用 `card.created_at`（数据库卡片创建时间），详情页使用 `card.source.captured_at`（对话抓取时间）。同一次抓取生成多张卡片时各卡片 `createdAt` 有先后，实际对话时间以此为记录
+  2. 第一版修复使用 `@tauri-apps/plugin-opener` 前端调用 `openUrl()`，但 Tauri HTTP mode 下页面走 `http://localhost` 而非 `tauri://localhost`，WebView 不注入 `__TAURI_INTERNALS__`，前端 IPC 完全不可用
+- **修复（最终方案）：**
+  1. 列表页和收藏页日期字段从 `card.created_at` 改为 `card.source?.captured_at || card.created_at`
+  2. 放弃前端 IPC 方案，改为后端端点：Rust `POST /api/open-url` 使用 `open::that(url)` 调系统浏览器；Express 同步添加 `POST /api/open-url` 使用 `child_process.exec(start/open/xdg-open)`；前端改为 `fetch('/api/open-url', {url})` 调用
+- **产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/server/index.js`、`demo/web/package.json`
+
+## E-025 — AI 输出中残留 markdown 格式符号（`\n`、`**粗体**`、`#标题`）+ 对话记录显示混乱
+
+- **日期：** 2026-05-26
+- **位置：** `demo/server/capture.js`、`demo/server/ai.js`、`src-tauri/src/main.rs`、`demo/web/src/App.tsx`
+- **现象：**
+  1. DeepSeek 等模型生成的卡片 narrative 中出现字面 `\n` 字符、`**粗体**` 标记、`## 标题` 等 markdown 格式
+  2. 对话记录消息中同样存在大量 markdown 残留
+  3. Prompt 中没有规范禁止 markdown 格式，也没有兜底清洗
+- **根因：** 三层缺失：
+  1. Prompt 未强制要求输出纯文本（无 markdown）
+  2. Pipeline 产出后无质检环节
+  3. 前端对话记录显示了原始消息未清洗 + 清洗版/原始版切换按钮增加复杂度
+- **修复：**
+  1. 新增 `sanitizeContent()` 质检函数（7 步正则：字面 \n→换行、去 # 标题标记、去 **粗体** 标记、去 *斜体* 标记、去 --- 分割线、去 AI 前缀、压缩空行），在三层链路中复用：
+     - 消息清洗：`capture.js` / `main.rs` → clean messages
+     - 卡片输出：`ai.js` / `main.rs` → title / narrative / original_question / tags / full_output
+     - 前端兜底：`App.tsx` → 显示时对旧数据再洗一遍
+  2. 对话记录 Tab：移除"查看清洗版/查看原始版"切换按钮，始终显示清洗版消息并过 sanitize
+- **产出文件：** `demo/server/capture.js`、`demo/server/ai.js`、`src-tauri/src/main.rs`、`demo/web/src/App.tsx`
+
+## E-026 — Tauri 客户端卡片列表 2 列，网页端 3 列（布局不一致）
+
+- **日期：** 2026-05-26
+- **位置：** `demo/web/src/index.css`、`src-tauri/tauri.conf.json`
+- **现象：**
+  1. 网页端卡片列表每行显示 3 张卡片，Tauri 客户端只显示 2 张
+  2. 客户端卡片显得过大，观感不佳
+  3. 多次调整窗口宽度（1200→1400→1440px）均无效
+- **根因（多层叠加）：**
+  1. **主要因素**：CSS grid 的 `repeat(auto-fill, minmax(320px, 1fr))` 中 min=320px 过大，3 列需 992px+，Tauri WebView2 CSS 视口实际可用宽度不足（可能受 DPI 缩放或窗口边框影响，CSS 视口 < 配置的物理像素）
+  2. **次要因素**：侧边栏 `25%`（min 280px/max 380px）在 1440px 窗口下占约 360px，压缩了卡片可用空间
+  3. **诊断阻塞**：Tauri dev 模式连 Vite dev server（非嵌入 dist），以为改 CSS 就生效，但用户需手动刷新；且端口冲突（TIME_WAIT）导致 Vite 多次切换端口号，增加了排查难度
+- **修复：**
+  1. Tauri 窗口默认宽度：1200→1440px
+  2. 侧边栏改为固定宽度：260px（原 25% 百分比宽度）
+  3. 卡片网格最小宽度：320→230px（3 列仅需 3×230+2×16=722px）
+- **诊断方法**：用红色背景 + `repeat(3, 1fr)` 排除了"CSS 未加载"的可能，确认 CSS 通路正常
+- **产出文件：** `src-tauri/tauri.conf.json`、`demo/web/src/index.css`
+
 ## E-018 — Tauri SQLite FTS 触发器导致数据库损坏（UPDATE 静默失败）
 - **日期：** 2026-05-26
 - **位置：** `src-tauri/db/schema.sql` — `cards_fts` 虚拟表 + 触发器
@@ -42,6 +96,24 @@
 - **根因：** Tauri Rust 端完全没有端口 Demo 的 `cleanConversation()`。`raw_json` 被同时绑定到 raw 表和 clean 表，AI Pipeline 接收原始消息
 - **修复：** 新增 4 个清洗函数（`normalize_role`/`clean_content`/`merge_consecutive`/`clean_conversation`），`do_capture` 和 `http_capture` 改为清洗后再存储和调用 Pipeline
 - **编译结果：** `cargo check` 零 error 零 warning
+
+## E-023 — 意图分类器 6/7+4 结果误判为"其他"（三层根因）
+
+- **日期：** 2026-05-26
+- **位置：** `docs/prompts/classifier/prompt.md`、`src-tauri/src/main.rs` — `classify_intent()`、`intent_by_key()`、`extract_prompt_block()`
+- **现象（第一批 6/7）：** 日志显示 6/7 的对话被意图分类器判为"其他"（天气→事实查询 ✓，其余全部→其他 ✗）
+- **现象（第二批 4 个 badcase）：** 修复后 4 个场景仍被判为其他 — Obsidian介绍/说明书guidance辨析/AI产业链分析/短剧市场
+- **根因（三层）：**
+  1. **Prompt 过长导致 LLM 偷懒**（第一层）：classifier prompt 约 300 行 ~3500 tokens，"输出 1 个词"的任务 LLM 默认选最后一个类别 "other" → 精简到 55 行决策树
+  2. **代码不识别中文输出**（第二层）：`intent_by_key()` 只匹配英文 key → 新增中文标签反向匹配 + `classify_intent` 规范化
+  3. **few-shot 示例从未进入 system prompt**（第三层 — 最关键）：`extract_prompt_block()` 提取范围是 `## 角色设定` → `## 示例输出`（不含），而 13 个 few-shot 示例全部放在 `## 示例输出` 之下，从未发送给 LLM！LLM 收不到任何示例，分类完全靠文字描述，容易误判
+- **修复（三层）：**
+  1. **Prompt 重构**：从 300 行压缩到 ~110 行，改为决策树格式（1→10 顺序判断）+ 强制反 other 兜底规则 + 关键边界表
+  2. **intent_by_key 中文化**：新增中文标签反向匹配；`classify_intent` 规范化输出为英文 key
+  3. **few-shot 嵌入 system prompt**：将 13 个范例从 `## 示例输出` 移到其前面的 `## 典型范例` 节中，确保 LLM 收到示例
+  4. **调试增强**：`classify_intent` 新增 raw response 日志
+- **修复文件：** `docs/prompts/classifier/prompt.md`（两次重写）、`src-tauri/prompts/classifier/prompt.md`（同步）、`src-tauri/src/main.rs`（`intent_by_key` + `classify_intent` + 日志）、`demo/server/ai.js`（`classifyIntent`）、`demo/web/src/App.tsx`（卡片类型手动切换）
+- **验证结果：** 9/9 测试通过 — 概念理解/REST-GraphQL ✓ / Rust学习 ✓ / Docker报错 ✓ / 群运营 ✓ / Python特性 ✓ / Obsidian ✓ / 说明书guidance ✓ / AI产业链 ✓ / 短剧市场 ✓
 
 ## E-022 — Kimi DOM 结构变更导致抓取失败
 

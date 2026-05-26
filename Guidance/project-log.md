@@ -299,6 +299,18 @@
 - `try_repair_json()`：7 层修复（代码块去除→花括号提取→字面换行修复→未闭合引号→尾部逗号→缺失逗号→未闭合括号）
 **产出文件：** `src-tauri/src/main.rs`（新增约 450 行）
 
+## 2026-05-26 — 分类器三层修复 + 卡片类型手动切换
+
+**主题：** 发现 few-shot 从未进入 system prompt（最关键根因）+ 前端加卡片类型下拉切换
+**关键结论：** 三层根因全部修复：Prompt 精简 → 中文值兼容 → few-shot 从 `## 示例输出` 之后移到前面的 `## 典型范例` 节中。9/9 测试通过。前端新增类型手动调整功能，误判可手动修正。
+**产出文件：** `docs/prompts/classifier/prompt.md`、`src-tauri/prompts/classifier/prompt.md`、`src-tauri/src/main.rs`、`demo/server/ai.js`、`demo/web/src/App.tsx`、3 份 Guidance 更新
+
+## 2026-05-26 — 意图分类器双层修复（Prompt 精简 + 中文值兼容）
+
+**主题：** 修复分类器 6/7 误判为"其他"：Prompt 从 300 行决策树压缩为 ~110 行 + `intent_by_key` 新增中文标签反向匹配 + `classify_intent` 规范化
+**关键结论：** Prompt 过长导致 LLM 偷懒 + 代码只认英文 key 双层根因，5/5 测试通过
+**产出文件：** `docs/prompts/classifier/prompt.md`、`src-tauri/prompts/classifier/prompt.md`、`src-tauri/src/main.rs`、`demo/server/ai.js`、3 份 Guidance 更新
+
 ## 2026-05-26 — Tauri 1:1 复刻 Demo 数据链路 + Kimi 抓取修复
 
 **主题：** Tauri capture 对话清洗模块移植 + 缺失字段/路由补齐 + Kimi DOM 回退
@@ -309,3 +321,22 @@
 4. 前端 HTTP capture 接口格式已对齐 Demo 完整 JSON（rawId/cleanId/cardId/cardCount/card/aiError/needsApiKey）
 5. 这是关键突破——后续不可随意修改 capture 数据链路
 **产出文件：** `src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/extension/content.js`、4 份 Guidance 更新
+
+## 2026-05-26 — Pipeline 细节修复 + AI 输出质检机制
+
+**主题：** 列表/详情时间对齐 + Tauri 外部链接后端方案 + 三层 sanitizeContent 质检
+**关键结论：**
+1. 卡片列表页用 `created_at`（数据库插入时间），详情页用 `captured_at`（对话抓取时间），源头不同导致不一致。统一使用 `source.captured_at`
+2. Tauri HTTP mode 下前端 IPC 完全不可用（页面走 `http://localhost` 不注入 `__TAURI_INTERNALS__`），"回到原始对话"等功能需走后端端点方案（`POST /api/open-url` → `open::that(url)`）
+3. 新增 `sanitizeContent()` 质检函数在消息清洗、卡片生成、前端显示三层复用，作为 Prompt 约束之外的兜底机制。同时移除对话记录的清洗版/原始版切换按钮，简化 UI
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/server/capture.js`、`demo/server/ai.js`、`demo/server/index.js`、3 份 Guidance 更新
+
+## 2026-05-26 — 客户端卡片列表 2列→3列 布局修复
+
+**主题：** Tauri 客户端卡片列表从 2 列改为 3 列（对齐网页端）
+**关键结论：**
+1. 根因：Tauri 窗口 CSS 视口实际可用宽度不足以让 `minmax(280px, 1fr)` 算出 3 列（可能受 DPI 缩放/窗口边框影响）
+2. 诊断方法：先用红色背景 + `repeat(3, 1fr)` 验证 CSS 能被 WebView2 正常接收，确认 CSS 通路无问题后再调数值
+3. 最终修正：窗口 1200→1440px + 侧边栏 25%→260px + 网格 minmax 320→230px，3 列仅需 722px
+4. 经验：Tauri dev 模式下客户端连 Vite dev server，修改源码 CSS 即可通过 HMR 推送，但需用户刷新窗口
+**产出文件：** `src-tauri/tauri.conf.json`、`demo/web/src/index.css`、3 份 Guidance 更新

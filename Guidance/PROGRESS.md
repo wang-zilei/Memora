@@ -448,3 +448,57 @@
 2. 增强 `inferRole()` — 向上查 4 层祖先元素找角色线索
 
 **产出文件：** `src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/extension/content.js`
+
+## 2026-05-26 — 意图分类器 Prompt 精简 + 中文值兼容修复
+
+**主题：** 修复意图分类器 6/7 结果误判为"其他"的根本问题
+**问题根因（两层）：**
+1. **Prompt 过长**：分类器 prompt 约 300 行 ~3500 tokens，10 个意图各 20 行详解 + 6 个长示例，对"输出 1 个词"的任务来说 LLM 直接偷懒默认选 "other"
+2. **代码不认中文输出**：`intent_by_key()` 只匹配英文 key，LLM 返回中文"概念理解"时 fallback 到兜底 "其他"
+**关键变更：**
+- **prompt 重写**（`docs/prompts/classifier/prompt.md`）：从 300 行压缩到 ~110 行，核心改为**分类决策树**格式（1-10 顺序判断，匹配即输出）+ 关键陷阱提示 + 10 个 few-shot 示例
+- **`intent_by_key()` 中文化**（`src-tauri/src/main.rs`）：先匹配英文 key（case-insensitive），再反向匹配 `v.zh` 中文标签
+- **`classify_intent()` 规范化**：通过查询 INTENT_MAP 将 LLM 返回的中/英文标签统一规范化为英文 key，确保下游路由一致
+- **`demo/server/ai.js` 同步修复**：`classifyIntent()` 新增中文标签反向查找
+- **`src-tauri/prompts/` 同步**：prompt 路径从 `docs/prompts` 复制到 `src-tauri/prompts` 实现自包含发布
+**验证结果：** 5 类对话测试全部正确 — 概念理解 ✓ / 技能学习 ✓ / 操作指南 ✓ / 头脑风暴 ✓ / 事实查询 ✓
+**产出文件：** `docs/prompts/classifier/prompt.md`、`src-tauri/prompts/classifier/prompt.md`、`src-tauri/src/main.rs`、`demo/server/ai.js`、`Guidance/bug-log.md`、`Guidance/PROGRESS.md`
+
+## 2026-05-26 — 分类器 few-shot 嵌入 + 卡片类型手动调整
+
+**主题：** 发现 few-shot 从未进入 system prompt + 4 个 badcase 仍被判其他，深度修复 + 前端加类型切换
+**根因（第三层 — 最关键）：** `extract_prompt_block()` 提取范围是 `## 角色设定` → `## 示例输出`（不含），而 13 个 few-shot 示例全部放在 `## 示例输出` 之下，从未发送给 LLM。这是分类器始终不准的根因
+**关键变更：**
+- **prompt 二次重写**：将 13 个范例从 `## 示例输出` 移到其前面的 `## 典型范例` 节中，确保 LLM 收到示例；新增"最高原则2：other是万不得已的选择"；新增"兜底规则：犹豫时选 concept_exploration"
+- **前端详情页**：新增卡片类型手动切换功能（概览 Tab 第一个元素为可点击的 card_type badge，点击弹出 10 类下拉菜单，选中后调用 `updateCard` API 即时更新）
+- **调试增强**：`classify_intent` 新增 raw response 日志（`tracing::info`）
+**验证结果：** 4 个之前误判的 badcase 全部修复 — Obsidian ✓ / 说明书guidance ✓ / AI产业链 ✓ / 短剧市场 ✓（LLM 原始返回均为 `concept_exploration`）
+**产出文件：** `docs/prompts/classifier/prompt.md`（二次重写）、`src-tauri/prompts/classifier/prompt.md`（同步）、`src-tauri/src/main.rs`（调试日志）、`demo/web/src/App.tsx`（类型选择器）、`Guidance/bug-log.md`（E-023 更新）、`Guidance/PROGRESS.md`
+
+## 2026-05-26 — 列表/详情时间对齐 + Tauri 外部链接修复 + AI 输出质检兜底
+
+**主题：** 修复两个细节 Bug + 新增三层 sanitizeContent 质检机制
+**关键变更：**
+- **Bug 修复 — 时间对齐**：卡片列表页和收藏页日期从 `card.created_at`（数据库创建时间）改为 `card.source?.captured_at`（对话抓取时间），与详情页一致
+- **Bug 修复 — Tauri 外部链接**：Tauri HTTP mode 下 WebView 不注入 `__TAURI_INTERNALS__`（页面走 `http://localhost` 而非 `tauri://localhost`），前端 IPC 完全不可用。改为后端方案：Rust 新增 `POST /api/open-url` 用 `open::that(url)` 调系统浏览器，Express 同步添加用 `child_process.exec()`
+- **AI 输出质检**：新增 `sanitizeContent()` 7 步正则质检函数（字面 \n→换行、去 # 标题、去 **粗体**、去 *斜体*、去分割线、去 AI 前缀、压缩空行），三层链路复用：
+  - 消息清洗：`capture.js` / `main.rs` → clean messages
+  - 卡片输出：`ai.js` / `main.rs` → title / narrative / original_question / tags / full_output
+  - 前端兜底：`App.tsx` → 显示时对旧数据再洗一遍
+- **对话记录 UI 简化**：移除"查看清洗版/查看原始版"切换按钮，始终显示清洗版消息
+**产出文件：** `demo/web/src/App.tsx`、`demo/web/src/index.css`、`src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/server/capture.js`、`demo/server/ai.js`、`demo/server/index.js`、`Guidance/bug-log.md`、`Guidance/PROGRESS.md`
+
+## 2026-05-26 — 客户端卡片列表 2 列→3 列布局修复
+
+**主题：** 修复 Tauri 客户端卡片列表只显示 2 列（网页端 3 列），卡片过大观感不佳
+**问题定位过程：**
+1. 初步判断窗口太小（1200px），改为 1440px → 无效
+2. 降低卡片 minmax 320→280px → 仍无效
+3. 发现 Tauri 连的是 Vite dev server 而非嵌入 dist → 多次端口冲突后确认 Vite HMR 正常推送 CSS
+4. 用红色背景 + `repeat(3, 1fr)` 诊断 → 确认 CSS 生效，但 auto-fill 在 Tauri 窗口可用宽度下算不出 3 列
+**根因：** Tauri 窗口 1440px 减去侧边栏（原 25%≈360px）和 main-content padding（48px）后，`repeat(auto-fill, minmax(280px, 1fr))` 的实际可用宽度不足以触发 3 列（可能受 DPI 缩放或窗口边框影响，CSS 视口 < 物理窗口）
+**关键变更：**
+- **Tauri 窗口**：1200→1440px（`src-tauri/tauri.conf.json`）
+- **侧边栏**：25%（min 280/max 380）→ 固定 260px（`--sidebar-width/min/max`）
+- **卡片网格**：`minmax(320px, 1fr)` → `minmax(230px, 1fr)`，3 列仅需 722px
+**产出文件：** `src-tauri/tauri.conf.json`、`demo/web/src/index.css`、`Guidance/PROGRESS.md`、`Guidance/bug-log.md`

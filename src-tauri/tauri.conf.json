@@ -14,9 +14,9 @@
     "windows": [
       {
         "title": "LLM 知识库",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 900,
+        "width": 1440,
+        "height": 860,
+        "minWidth": 960,
         "minHeight": 600,
         "resizable": true,
         "center": true
