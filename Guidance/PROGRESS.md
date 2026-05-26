@@ -367,3 +367,84 @@
 - **前端 api.ts**：补齐 Tauri 路由（/tags、/statistics、/cards/:id/summarize、/status），`summarizeCard` 支持传入 settings 参数
 **验证结果：** `cargo check` 通过，0 errors 0 warnings
 **产出文件：** `src-tauri/src/main.rs`（完全重写）、`src-tauri/Cargo.toml`、`src-tauri/db/schema.sql`、`demo/web/src/api.ts`
+
+## 2026-05-26 — Tauri HTTP 路由补全 + FTS 触发器修复 + 端到端验证通过
+
+**主题：** 解决 Tauri 客户端"抓取成功但前端看不到卡片"的根本问题，实现 Demo ↔ Tauri 数据路径完全隔离
+**修复的 Bug：**
+- **E-018** FTS 触发器导致数据库损坏：`content_rowid='rowid'` 与 TEXT PRIMARY KEY 表不兼容，UPDATE 触发器执行后数据库静默损坏。改为独立 FTS 表，用 `card_id` 字符串关联
+- **E-019** HTTP 路由缺失：Router 只注册了 capture + status，缺少全部 CRUD 路由。补全 9 个 HTTP handler + 路由注册
+- **E-020** 数据库 file-level corruption：VACUUM INTO 期间未停止 Tauri 进程，写锁未释放导致新数据库从源头损坏
+**关键变更：**
+- `src-tauri/db/schema.sql`：FTS 表从 `content='knowledge_cards', content_rowid='rowid'` 改为独立表 + `card_id UNINDEXED` 字段 + `WHERE card_id = new.id` 触发器
+- `src-tauri/src/main.rs`：新增 `http_get_cards`、`http_get_card`、`http_update_card`、`http_delete_card`、`http_get_tags`、`http_get_statistics`、`http_get_settings`、`http_update_settings`、`http_validate_settings` 共 9 个 HTTP handler
+- `src-tauri/src/main.rs`：Router 注册全部 11 条路由（GET/POST/PUT/DELETE），axum 0.8 路径语法 `{id}` 替代 `:id`
+- `src-tauri/src/main.rs`：所有 `select_cols` 新增 `narrative` 和 `summarize_error` 字段
+- `demo/web/.env`：修正 `VITE_API_MODE=http`（之前被误写为 `tauri`）
+**验证结果：**
+- 端到端抓取 → AI Pipeline → 数据库写入 → HTTP API 返回完整卡片数据，全部通过
+- Demo 前端通过 HTTP 模式正常显示 Tauri 客户端数据
+**关键结论：** Demo 和 Tauri 共享同一个端口 17321，不能同时运行。Demo 验证时用 Express 后端，Tauri 验证时用 Rust HTTP server，两者数据路径完全隔离（json-server db.json vs SQLite）
+**产出文件：** `src-tauri/src/main.rs`、`src-tauri/db/schema.sql`、`demo/web/.env`、`Guidance/bug-log.md`
+
+## 2026-05-26 — 4 步 AI 流水线完整移植到 Tauri Rust
+
+**主题：** 将 demo/server/ai.js 验证的 4 步流水线（话题切分 → 意图分类 → 卡片生成 → 去重）完整移植到 Rust
+**关键变更：**
+- `src-tauri/src/main.rs` 新增约 450 行 pipeline 代码，替换原来的单 prompt 占位实现
+- **split_topics()**：读取 topic-split/prompt.md，格式化 user 消息为 `[N]: 内容`，兼容 5 种 JSON 返回格式，自动 extend 话题块边界
+- **classify_intent()**：读取 classifier/prompt.md，返回意图英文 key，fallback 为 other
+- **generate_card()**：按意图路由到对应 prompt（10 个中文意图），max_tokens: 6000，支持 7 层 JSON 修复
+- **deduplicate_cards()**：7 条字符集 Jaccard 相似度规则，与 demo 完全一致（包含同 capture 特殊判断）
+- **call_openai_compat()**：通用 HTTP LLM 调用，自动处理 /v1 路径补齐
+- **extract_prompt_block()**：从 markdown 提取"## 角色设定"到"## 示例输出"之间的内容
+- **prompts_dir()**：自动定位 workspace/docs/prompts 路径（适配 target/debug 三级目录上溯）
+- **try_repair_json()**：7 层 JSON 修复（代码块去除 → 花括号提取 → 字面换行修复 → 未闭合引号 → 尾部逗号 → 缺失逗号 → 未闭合括号）
+- **PipelineCardResult**：新增 `source` 字段（Optional<String>），用于同 capture 去重判断
+- `run_ai_pipeline()` 重写：依次调用 split_topics → classify_intent → generate_card → deduplicate_cards，每步都有 fallback 降级
+**验证结果：** `cargo check` 通过（仅 1 个 dead_code warning），`cargo build` 因 Tauri 进程锁定 .exe 未完整链接（非代码问题）
+**产出文件：** `src-tauri/src/main.rs`、`Guidance/project-log.md`
+
+## 2026-05-26 — Tauri 1:1 复刻 Demo 数据链路（关键突破）
+
+**主题：** 修复 Tauri 缺少对话清洗逻辑 + 补齐缺失字段/路由/静态文件服务 + 修复 Kimi 抓取失败
+**关键变更：**
+
+### 一、6 项结构体/路由/格式修复
+- **Fix 1-2**：`KnowledgeCardSummary` 补 `narrative`/`summarize_error`；`KnowledgeCardDetail` 补 `narrative`/`full_output`/`summarize_error`/`clean_id`
+- **Fix 3**：`clean_id()` 实现错误（返回 card.id 而非 clean_id），改为 `clean_id_str() -> Option<&str>`
+- **Fix 4**：HTTP Router 缺 `POST /api/cards/{id}/summarize`，新增 `http_summarize_card` handler
+- **Fix 5**：`http_capture` 返回格式对齐 Demo JSON（`rawId`/`cleanId`/`cardId`/`cardCount`/`card`/`aiError`）
+- **Fix 6**：HTTP Server 缺前端静态文件服务 → `tower-http` fs feature + `ServeDir` fallback
+- **编译结果**：`cargo check` 零 error 零 warning
+
+### 二、对话清洗模块（核心修复）
+**问题根因**：Rust 端完全没有清洗逻辑。扩展的原始消息（含 `<think>` 标签、平台垃圾文本、各异角色名）被直接存入 clean 表和传给 AI Pipeline，导致数据链路全错。
+**修复**：在 `src-tauri/src/main.rs` 新增 4 个清洗函数（对齐 `demo/server/capture.js`）：
+| Rust 函数 | Demo 对应 | 作用 |
+|-----------|-----------|------|
+| `normalize_role()` | `normalizeRole()` | `user/human/1` → user，其余 → assistant |
+| `clean_content()` | `cleanContent()` | 去 `<think>` 标签、`[思考]` 块、垃圾文本、压缩空行 |
+| `merge_consecutive()` | `mergeConsecutive()` | 合并连续同角色消息 |
+| `clean_conversation()` | `cleanConversation()` | 编排以上三步，返回清洗后消息 + 标题 |
+
+**数据流变更**：
+```
+之前: 扩展 → raw 消息 → raw_json ─┬→ raw 表
+                                  ├→ clean 表（未清洗!）
+                                  └→ AI Pipeline（脏数据!）
+
+之后: 扩展 → raw 消息 → clean_conversation() → clean 消息 ─┬→ raw 表（原始）
+                                                           ├→ clean 表（清洗后）
+                                                           └→ AI Pipeline（干净数据）
+```
+- `do_capture()` + `http_capture()` 均已改用 `clean_json` 写入 clean 表 + `cleaned_messages` 传入 AI Pipeline
+- `Cargo.toml` 新增 `regex` crate 用于内容清洗正则
+
+### 三、Kimi 抓取修复
+**问题根因**：Kimi 迁移到 `kimi.com` 后 DOM 结构变更，现有 CSS 选择器全部失效。
+**修复**：`demo/extension/content.js` 共享 `createVisibleDomProbe` 新增 2 层回退：
+1. `collectReadableTextBlocks()` — 当所有选择器不匹配时，扫描页面所有可见文本块推断角色
+2. 增强 `inferRole()` — 向上查 4 层祖先元素找角色线索
+
+**产出文件：** `src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/extension/content.js`

@@ -168,23 +168,47 @@ h:\llm-chat-knowledge-base\
 
 | 模式 | 环境变量 | 说明 |
 |------|---------|------|
-| HTTP (Demo) | `VITE_API_MODE=http` | fetch 调用 Express 后端 |
+| HTTP (Demo) | `VITE_API_MODE=http` | fetch 调用 Express 后端（localhost:17321） |
 | Tauri (Production) | `VITE_API_MODE=tauri` | invoke 调用 Rust commands |
 
 同一份前端代码在两种模式下均可运行，减少调试成本。
+
+### 数据路径隔离
+
+Demo 和 Tauri **共享同一端口 17321**，不能同时运行：
+- **Demo 模式**：Express + JSON 文件存储（`demo/data/db.json`）
+- **Tauri 模式**：Rust axum HTTP server + SQLite（`src-tauri/target/debug/knowledge_base.db`）
+
+两者数据路径完全隔离，切换时需先停止一个再启动另一个。前端通过 `.env` 中的 `VITE_API_MODE` 决定调用模式。
+
+### Tauri HTTP 路由表
+
+| 方法 | 路径 | Handler | 说明 |
+|------|------|---------|------|
+| POST | `/api/capture` | `http_capture` | 接收扩展抓取数据 |
+| GET | `/api/cards` | `http_get_cards` | 卡片列表（支持分页/筛选/搜索） |
+| GET | `/api/cards/{id}` | `http_get_card` | 卡片详情 |
+| PUT | `/api/cards/{id}` | `http_update_card` | 更新卡片（标题/收藏/标签等） |
+| DELETE | `/api/cards/{id}` | `http_delete_card` | 删除卡片 |
+| GET | `/api/tags` | `http_get_tags` | 标签聚合 |
+| GET | `/api/statistics` | `http_get_statistics` | 统计面板 |
+| GET | `/api/settings` | `http_get_settings` | 获取设置 |
+| PUT | `/api/settings` | `http_update_settings` | 更新设置 |
+| POST | `/api/settings/validate` | `http_validate_settings` | 测试 API 连接 |
+| POST | `/api/cards/{id}/summarize` | `http_summarize_card` | 触发 AI 重新总结 |
+| GET | `/api/status` | `http_status` | 服务状态 |
 
 ## 五、SQLite Schema（PRD-v2）
 
 ```
 raw_conversations        原始抓取结果（id, platform, messages_json, captured_at）
 clean_conversations      清洗后对话（id, raw_id, messages_json）
-knowledge_cards          知识卡片（id, raw_id, clean_id, title, card_type, topic,
-                           insights_json, outputs_json, tags_json, review_schedule_json,
-                           starred, archived）
-topics                   主题分类（name, type, color）
+knowledge_cards          知识卡片（id, raw_id, clean_id, title, card_type,
+                           narrative, full_output, tags_json, summarize_error,
+                           review_schedule_json, starred, archived）
 settings                 设置（key, value）
 user_stats               用户统计（key, value_json）
-cards_fts                FTS5 全文搜索虚拟表
+cards_fts                FTS5 全文搜索虚拟表（独立表，card_id 关联 knowledge_cards.id）
 ```
 
 ## 六、变更历史
@@ -205,3 +229,9 @@ cards_fts                FTS5 全文搜索虚拟表
 | 2026-05-24 | content-creation / text-processing 移除 full_output 字段，改为在 narrative 中要求输出"产出内容概览" |
 | 2026-05-25 | 侧边栏视觉优化：Logo 放大（56×56 + Wordmark 32px）、emoji 替换为 Material Symbols 字体图标、底部用户与设置按钮同行排列。新增 `Logo.tsx` 组件 |
 | 2026-05-25 | 卡片详情页全面重构：Tab 式布局（概览/原始对话）、可编辑标题（STZhongsong 28px/900/letter-spacing 2px）、三点菜单（收藏/删除）、去 emoji 消息标签 |
+| 2026-05-26 | Tauri HTTP 路由补全：新增 9 个 HTTP handler + 11 条路由（GET/POST/PUT/DELETE），axum 0.8 路径语法 `{id}` |
+| 2026-05-26 | FTS 触发器修复：`cards_fts` 从 content 外部表改为独立表，`card_id` 字符串关联，不再依赖 rowid 映射 |
+| 2026-05-26 | `select_cols` 补齐 `narrative` 和 `summarize_error` 字段，卡片列表 API 正常返回摘要 |
+| 2026-05-26 | Tauri capture 数据链路修复：新增 Rust 对话清洗模块（`normalize_role`/`clean_content`/`merge_consecutive`/`clean_conversation`），对齐 Demo `capture.js`；数据流从"原始消息直存"改为"先清洗后存储+传入 Pipeline" |
+| 2026-05-26 | Tauri HTTP route 补全 `POST /api/cards/{id}/summarize` + 静态文件服务（tower-http ServeDir） |
+| 2026-05-26 | Extension `createVisibleDomProbe` 新增 DOM 回退机制（`collectReadableTextBlocks`），Kimi `kimi.com` 域名 DOM 变更后恢复抓取 |

@@ -267,15 +267,85 @@
         ? turnElements.map((element) => ({ element, role: inferRole(element) }))
         : roleElements;
 
-      return picked
-        .map(({ element, role }) => ({ role, content: extractText(element), top: element.getBoundingClientRect().top + window.scrollY }))
+      const candidates = picked
+        .map(({ element, role }) => ({ role, content: extractText(element), top: getElementTop(element) }))
         .filter((item) => item.content);
+
+      if (candidates.length) return candidates;
+
+      // Fallback: no selectors matched — scan for readable text blocks
+      return collectReadableTextBlocks();
+    }
+
+    function collectReadableTextBlocks() {
+      const root = document.querySelector('main') || document.body;
+      if (!root) return [];
+      const blockSelectors = ['article', 'section', 'div', 'p', 'li', 'pre', '[data-testid]', '[class]'];
+      const elements = Array.from(root.querySelectorAll(blockSelectors.join(',')));
+      const blocks = elements
+        .filter(isVisibleTextBlock)
+        .map((element) => ({
+          role: inferRole(element),
+          content: extractOwnReadableText(element),
+          top: getElementTop(element),
+        }))
+        .filter((item) => item.content);
+
+      // Deduplicate: remove parent blocks whose text is covered by children
+      const sorted = blocks.sort((a, b) => b.content.length - a.content.length);
+      const kept = [];
+      for (const item of sorted) {
+        const key = normalizeForCompare(item.content);
+        if (!key) continue;
+        if (kept.some((e) => {
+          const ek = normalizeForCompare(e.content);
+          return ek === key || (ek.length > key.length && ek.includes(key));
+        })) continue;
+        kept.push(item);
+      }
+      return kept.sort((a, b) => a.top - b.top);
+    }
+
+    function isVisibleTextBlock(element) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 120 || rect.height < 12) return false;
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+      const text = extractOwnReadableText(element);
+      return text.length >= 2 && text.length <= 8000;
+    }
+
+    function extractOwnReadableText(element) {
+      const text = extractText(element);
+      if (!text) return '';
+      const childTexts = Array.from(element.children || [])
+        .map((child) => cleanText(child.innerText || child.textContent || ''))
+        .filter((childText) => childText && childText.length > 20);
+      if (childTexts.some((childText) => childText === text)) return '';
+      return text;
+    }
+
+    function getElementTop(element) {
+      const rect = element.getBoundingClientRect();
+      return rect.top + window.scrollY;
     }
 
     function inferRole(element) {
       const own = `${element.getAttribute('data-role') || ''} ${element.getAttribute('aria-label') || ''} ${element.className || ''}`.toLowerCase();
       if (/user|human|question|ask|mine|self/.test(own)) return 'user';
       if (/assistant|bot|answer|ai|markdown|response|agent/.test(own)) return 'assistant';
+      // Check ancestor signature for role hints
+      const ancestorSig = (function getAncestorSig(el, depth) {
+        const parts = [];
+        let cur = el.parentElement;
+        for (let d = 0; cur && d < depth; d++) {
+          parts.push(`${cur.getAttribute('data-role') || ''} ${cur.className || ''}`.toLowerCase());
+          cur = cur.parentElement;
+        }
+        return parts.join(' ');
+      })(element, 4);
+      if (/user|human|question|ask|mine|self/.test(ancestorSig)) return 'user';
+      if (/assistant|bot|answer|ai|markdown|response/.test(ancestorSig)) return 'assistant';
       const rect = element.getBoundingClientRect();
       return rect.left > window.innerWidth * 0.42 && rect.width < window.innerWidth * 0.72 ? 'user' : 'assistant';
     }
@@ -306,7 +376,8 @@
     }
 
     function containsDescendant(candidates, item) {
-      // 如果 item.element 包含其他候选元素，说明它是外层容器，应跳过
+      // 如果 item 没有 element 引用（回退模式），跳过嵌套检测
+      if (!item.element) return false;
       for (const other of candidates) {
         if (other === item) continue;
         if (other.element && item.element.contains(other.element)) return true;

@@ -84,24 +84,23 @@ CREATE INDEX IF NOT EXISTS idx_cards_review_date  ON knowledge_cards(review_sche
 
 -- FTS 全文搜索
 CREATE VIRTUAL TABLE IF NOT EXISTS cards_fts USING fts5(
+    card_id UNINDEXED,
     title,
     original_question,
     narrative,
     insights_json,
     outputs_json,
-    clean_messages_json,
-    content='knowledge_cards',
-    content_rowid='rowid'
+    clean_messages_json
 );
 
 -- FTS 触发器
 CREATE TRIGGER IF NOT EXISTS cards_fts_insert AFTER INSERT ON knowledge_cards BEGIN
-    INSERT INTO cards_fts(rowid, title, original_question, narrative, insights_json, outputs_json, clean_messages_json)
-    VALUES (new.rowid, new.title, new.original_question, new.narrative, new.insights_json, new.outputs_json, new.clean_messages_json);
+    INSERT INTO cards_fts(card_id, title, original_question, narrative, insights_json, outputs_json, clean_messages_json)
+    VALUES (new.id, new.title, new.original_question, new.narrative, new.insights_json, new.outputs_json, new.clean_messages_json);
 END;
 
 CREATE TRIGGER IF NOT EXISTS cards_fts_delete AFTER DELETE ON knowledge_cards BEGIN
-    DELETE FROM cards_fts WHERE rowid = old.rowid;
+    DELETE FROM cards_fts WHERE card_id = old.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS cards_fts_update AFTER UPDATE ON knowledge_cards BEGIN
@@ -112,7 +111,7 @@ CREATE TRIGGER IF NOT EXISTS cards_fts_update AFTER UPDATE ON knowledge_cards BE
         insights_json = new.insights_json,
         outputs_json = new.outputs_json,
         clean_messages_json = new.clean_messages_json
-    WHERE rowid = new.rowid;
+    WHERE card_id = new.id;
 END;
 
 -- ============================================================

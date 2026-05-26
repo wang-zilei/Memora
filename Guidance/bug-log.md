@@ -4,7 +4,57 @@
 
 ---
 
-## E-001 — Chrome Extension MV3 CSP: `new Function()` 被禁止
+## E-018 — Tauri SQLite FTS 触发器导致数据库损坏（UPDATE 静默失败）
+- **日期：** 2026-05-26
+- **位置：** `src-tauri/db/schema.sql` — `cards_fts` 虚拟表 + 触发器
+- **现象：** AI Pipeline 成功返回 JSON 结果，但 `UPDATE knowledge_cards` 写入 narrative/original_question 等字段时静默失败。数据库 `PRAGMA integrity_check` 返回 ok，但实际执行 UPDATE 时报错 `error 267/11: database disk image is malformed`
+- **根因：** `cards_fts` 定义中使用 `content='knowledge_cards', content_rowid='rowid'` 的外部表模式，但 `knowledge_cards` 使用 **TEXT PRIMARY KEY (UUID)** 而非 INTEGER PRIMARY KEY。SQLite 对非 INTEGER PK 的表有隐式 rowid，但 FTS5 的 content-rowid 映射在这种表上行为不稳定——INSERT 时 FTS 记录写入正常，但 UPDATE 触发器执行时 rowid 不一致导致内部数据结构损坏
+- **修复：** 将 `cards_fts` 从 content 外部表改为**独立 FTS 表**，新增 `card_id` 字段存储 UUID 字符串作为关联键。触发器从 `WHERE rowid = new.rowid` 改为 `WHERE card_id = new.id`。不再依赖任何 rowid 映射机制
+- **附带修复：** `select_cols` 缺少 `narrative` 和 `summarize_error` 字段，导致卡片列表 API 返回空摘要
+
+## E-019 — Tauri HTTP Server 缺少关键路由，前端无法获取卡片数据
+- **日期：** 2026-05-26
+- **位置：** `src-tauri/src/main.rs` — `start_http_server()` Router 配置
+- **现象：** 浏览器扩展显示抓取成功，Tauri 数据库也有数据，但前端卡片列表显示为空
+- **根因：** HTTP Router 只注册了 `/api/capture`（POST）和 `/api/status`（GET），缺少 `/api/cards`、`/api/cards/:id`、`/api/settings`、`/api/tags`、`/api/statistics` 等全部 CRUD 路由。前端 `api.ts` 在 `VITE_API_MODE=http` 模式下通过 fetch 调用这些端点，全部返回 404
+- **修复：**
+  1. 新增全部 HTTP handler 函数（`http_get_cards`、`http_get_card`、`http_update_card`、`http_delete_card`、`http_get_tags`、`http_get_statistics`、`http_get_settings`、`http_update_settings`、`http_validate_settings`），复用与 Tauri commands 相同的数据库查询逻辑
+  2. Router 注册所有路由，支持 GET/POST/PUT/DELETE 方法
+  3. 修复 axum 0.8 路径参数语法：`:id` → `{id}`
+  4. 修复 axum 路由方法导入：新增 `put`、`delete`
+  5. 修复 `http_get_cards` 查询参数提取：使用 `axum::extract::Query<HashMap>` 而非直接参数
+  6. 修复 `json!()` 宏内嵌套 let 语句的编译错误：所有变量提取到宏调用之前
+- **附带修复：** axum 0.8 `resp.status()` 在 `.text()` 后被 consume，需先保存 status 副本
+
+## E-020 — Tauri 数据库 file-level corruption（VACUUM INTO 期间进程未停止）
+- **日期：** 2026-05-26
+- **位置：** `src-tauri/target/debug/knowledge_base.db`
+- **现象：** 手动修复 FTS schema 后执行 `VACUUM INTO` 修复数据库，但 Tauri 进程仍在运行持有写锁，导致生成的新数据库从源头就损坏。后续即使删除重建，旧的 WAL/shm 文件残留也会导致新数据库被污染
+- **根因：** 执行 `VACUUM INTO` 前未停止 Tauri 进程，SQLite 写锁未释放。同时 `knowledge_base.db-journal`、`knowledge_base.db-wal`、`knowledge_base.db-shm` 等辅助文件未清理
+- **修复：** 执行数据库修复操作前必须先停止 Tauri 进程，然后删除所有 .db / .db-journal / .db-wal / .db-shm 文件，从头创建全新数据库
+- **教训：** 涉及 SQLite 文件级操作（VACUUM / VACUUM INTO / 备份 / 迁移）时，必须确保没有任何进程持有该数据库的连接
+
+## E-021 — Tauri 完全缺少对话清洗逻辑，原始消息直接当干净数据使用
+
+- **日期：** 2026-05-26
+- **位置：** `src-tauri/src/main.rs` — `do_capture()`、`http_capture()`
+- **现象：** 浏览器扩展抓取成功但 AI Pipeline 生成的卡片内容混乱（标题不对、叙事截断），clean_conversations 表数据与 raw_conversations 完全一致，前端详情页消息角色未归一化
+- **根因：** Tauri Rust 端完全没有端口 Demo 的 `cleanConversation()`。`raw_json` 被同时绑定到 raw 表和 clean 表，AI Pipeline 接收原始消息
+- **修复：** 新增 4 个清洗函数（`normalize_role`/`clean_content`/`merge_consecutive`/`clean_conversation`），`do_capture` 和 `http_capture` 改为清洗后再存储和调用 Pipeline
+- **编译结果：** `cargo check` 零 error 零 warning
+
+## E-022 — Kimi DOM 结构变更导致抓取失败
+
+- **日期：** 2026-05-26
+- **位置：** `demo/extension/content.js` — `captureKimi()` + 共享 `createVisibleDomProbe`
+- **现象：** 其他 6 个平台抓取正常，Kimi 报错 "未能从 Kimi 页面提取对话内容"
+- **根因：** Kimi 迁移到新域名 `kimi.com` 后 DOM 结构完全变了，现有 CSS 选择器（`[data-testid*="message"]`、`[class*="message"]` 等）全部无法匹配对话元素。共享 `createVisibleDomProbe` 的 `collectTurnCandidates()` 在 turnElements 和 roleElements 均为空时直接返回空数组，没有回退机制
+- **修复：**
+  1. `collectTurnCandidates()` 新增 fallback：当选择器全部失效时调用 `collectReadableTextBlocks()` 扫描页面所有可见文本块
+  2. `inferRole()` 增强：向上查 4 层祖先元素找角色签名
+  3. 新增 `isVisibleTextBlock()`、`extractOwnReadableText()` 辅助函数
+  4. `containsDescendant()` 防御：回退模式 item 无 element 引用时返回 false
+  - 回退逻辑对所有平台生效，任一平台 DOM 变更导致选择器失效时自动降级
 
 - **日期：** 2026-05-18
 - **位置：** `demo/extension/background.js`

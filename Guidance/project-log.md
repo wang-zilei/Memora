@@ -8,6 +8,16 @@
 
 **主题：** 魔法棒 SVG 图标 + 状态动画 + 闲置提醒 + 简洁报错
 **关键结论：** 悬浮球从 🧠 emoji 改为 SVG 魔法棒，新增 4 种状态（默认/抓取中/成功/失败）各有颜色+图标反馈，闲置 3 分钟弹跳提醒，报错按类型分类显示简洁文案
+
+## 2026-05-26 — Tauri 客户端 FTS + HTTP 路由全修复
+
+**主题：** 修复"抓取成功但前端看不到卡片"的根本问题
+**关键结论：**
+1. FTS 触发器 `content_rowid='rowid'` 与 TEXT PRIMARY KEY 表不兼容，UPDATE 时数据库损坏 → 改为独立 FTS 表 + card_id 关联
+2. HTTP Router 只注册了 capture + status，缺少全部 CRUD 路由 → 补全 9 个 handler + 11 条路由
+3. `select_cols` 缺少 narrative/summarize_error → 3 处全部补齐
+4. Demo 和 Tauri 共享端口 17321，不能同时运行，数据路径完全隔离
+**产出文件：** `src-tauri/src/main.rs`、`src-tauri/db/schema.sql`、`demo/web/.env`、3 份 Guidance 文档
 **产出文件：** `demo/extension/content.js`、`Guidance/PROGRESS.md`
 
 ## 2026-05-25 — 收藏/统计页视觉优化 + 用户区产品讨论
@@ -274,3 +284,28 @@
 - 用户解压后安装 .exe + 开发者模式加载 extension 目录
 - 客户端内置扩展版本检查 + 更新提醒
 **产出文件：** `Guidance/PROGRESS.md` 追加待办清单
+
+## 2026-05-26 — 4 步 AI 流水线完整移植到 Tauri Rust
+
+**主题：** 将 demo/server/ai.js 验证的 4 步流水线完整移植到 Rust
+**关键结论：**
+- `split_topics()`：读取 topic-split/prompt.md，格式化 user 消息序列，解析 JSON 多格式兼容，自动 extend 话题块边界
+- `classify_intent()`：读取 classifier/prompt.md，返回意图英文 key
+- `generate_card()`：按意图路由到对应 prompt（10 个中文意图），max_tokens: 6000，7 层 JSON 修复
+- `deduplicate_cards()`：7 条字符集 Jaccard 相似度规则（与 demo 完全一致）
+- `call_openai_compat()`：HTTP 调用，自动处理 /v1 路径补齐
+- `extract_prompt_block()`：从 markdown 提取"## 角色设定"到"## 示例输出"之间的内容
+- `prompts_dir()`：自动定位 workspace/docs/prompts 路径（适配 target/debug 三级目录上溯）
+- `try_repair_json()`：7 层修复（代码块去除→花括号提取→字面换行修复→未闭合引号→尾部逗号→缺失逗号→未闭合括号）
+**产出文件：** `src-tauri/src/main.rs`（新增约 450 行）
+
+## 2026-05-26 — Tauri 1:1 复刻 Demo 数据链路 + Kimi 抓取修复
+
+**主题：** Tauri capture 对话清洗模块移植 + 缺失字段/路由补齐 + Kimi DOM 回退
+**关键结论：**
+1. Tauri 根本没有清洗逻辑（raw_json 直接当 clean_json 存 + AI Pipeline 收脏数据），是数据链路全错的根因
+2. Rust 端完整移植 Demo 的 4 步清洗（normalize_role/clean_content/merge_consecutive/clean_conversation），cargo check 零 error 零 warning
+3. Kimi 迁移到 kimi.com 后 DOM 结构全变，共享 probe 无回退机制。新增 `collectReadableTextBlocks()` 文本块扫描回退，所有平台受益
+4. 前端 HTTP capture 接口格式已对齐 Demo 完整 JSON（rawId/cleanId/cardId/cardCount/card/aiError/needsApiKey）
+5. 这是关键突破——后续不可随意修改 capture 数据链路
+**产出文件：** `src-tauri/src/main.rs`、`src-tauri/Cargo.toml`、`demo/extension/content.js`、4 份 Guidance 更新
