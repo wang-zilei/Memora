@@ -14,6 +14,16 @@
 - 富文本编辑选定 TipTap 方案，待下一个会话开发
 **产出文件：** `src-tauri/src/main.rs`（3 处修改）、全部 5 个 Guidance 文档精简
 
+## 2026-05-27 — 富文本编辑实现（后端 + 前端 + 调试）
+
+**主题：** TipTap 富文本编辑器集成：后端 API 支持 narrative/unresolved_questions 字段更新 + 前端编辑器组件 + HTML 标签剥离修复
+**关键结论：**
+- Rust 端 `update_card` / `http_update_card` 各加 2 个可选参数，向后兼容
+- 前端 `TipTapEditor` 组件（B/I/U/高亮工具栏），800ms 防抖自动保存
+- 卡片列表 `sanitizeContent` 末尾加 HTML 标签剥离，解决预览显示 `<p>` `<strong>` 原始标签的问题
+- Tauri dev 模式需同时启动 Vite dev server (5173) + Rust 后端 (17321)
+**产出文件：** `src-tauri/src/main.rs`（2 处修改）、`demo/web/src/App.tsx`（TipTapEditor 组件 + CardDetail 编辑区）、`demo/web/src/index.css`（编辑器样式）、`demo/web/package.json`（+4 TipTap 依赖）、Guidance 文档
+
 ## 2026-05-26 — 组件 remount 根因 + 3 列布局修复
 
 **主题：** 收藏/删除实时反馈的 4 轮调试 → P-010 局部状态覆写模式 + 客户端卡片布局从 2 列改为 3 列

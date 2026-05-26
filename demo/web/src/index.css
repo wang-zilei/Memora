@@ -1454,3 +1454,85 @@ body {
   from { opacity: 0; transform: scale(0.92) translateY(-10px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ============ TipTap 富文本编辑器 ============ */
+.tiptap-wrapper {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.tiptap-wrapper:focus-within {
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.12);
+}
+
+.tiptap-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.tiptap-toolbar button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.tiptap-toolbar button:hover {
+  background: #e8e8e8;
+  color: #333;
+}
+
+.tiptap-toolbar button.is-active {
+  background: #667eea;
+  color: #fff;
+}
+
+/* EditorContent 内的 ProseMirror 编辑区 */
+.tiptap-wrapper .ProseMirror {
+  padding: 12px 14px;
+  min-height: 60px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #333;
+}
+
+.tiptap-wrapper .ProseMirror p {
+  margin: 0 0 4px 0;
+}
+
+.tiptap-wrapper .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* Placeholder 文字 */
+.tiptap-wrapper .ProseMirror p.is-editor-empty:first-child::before {
+  color: #adb5bd;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* 高亮颜色 */
+.tiptap-wrapper .ProseMirror mark {
+  background: #fff3cd;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+}

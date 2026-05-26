@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { flushSync } from 'react-dom'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import Highlight from '@tiptap/extension-highlight'
 import './index.css'
 import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
@@ -25,7 +29,75 @@ function sanitizeContent(text: string): string {
   t = t.replace(/^[-*_]{3,}\s*$/gm, '')
   t = t.replace(/^(好的[，,]\s*|当然[，,]\s*|以下是我的[^：:]*[：:]\s*|以下是[^：:]*[：:]\s*)/gm, '')
   t = t.replace(/\n{3,}/g, '\n\n')
+  // 8. 剥离 HTML 标签（TipTap 编辑器输出的是 HTML）
+  t = t.replace(/<[^>]*>/g, '')
   return t.trim()
+}
+
+/** 从 HTML 中提取段落文本数组 */
+function extractParagraphs(html: string): string[] {
+  if (!html) return []
+  const div = document.createElement('div')
+  div.innerHTML = html
+  const ps = Array.from(div.querySelectorAll('p'))
+  return ps.map(p => p.textContent?.trim() || '').filter(Boolean)
+}
+
+/** TipTap 富文本编辑器（B/I/U/高亮） */
+function TipTapEditor({ content, onSave, placeholder }: {
+  content: string
+  onSave: (html: string) => void
+  placeholder?: string
+}) {
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const lastSavedHtml = useRef(content)
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Highlight.configure({ multicolor: true }),
+    ],
+    content,
+    editorProps: {
+      attributes: {
+        placeholder: placeholder || '输入内容...',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML()
+      clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => {
+        // 只在内容实际变化时保存
+        if (html !== lastSavedHtml.current) {
+          lastSavedHtml.current = html
+          onSave(html)
+        }
+      }, 800)
+    },
+  })
+
+  // 外部 content 变更时同步（如切换卡片）
+  useEffect(() => {
+    if (editor && content !== lastSavedHtml.current) {
+      lastSavedHtml.current = content
+      editor.commands.setContent(content || '')
+    }
+  }, [content, editor])
+
+  if (!editor) return null
+
+  return (
+    <div className="tiptap-wrapper">
+      <div className="tiptap-toolbar">
+        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} title="加粗">B</button>
+        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''} title="斜体">I</button>
+        <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={editor.isActive('underline') ? 'is-active' : ''} title="下划线">U</button>
+        <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''} title="高亮">H</button>
+      </div>
+      <EditorContent editor={editor} />
+    </div>
+  )
 }
 
 // 意图标签颜色（柔和 tint 方案：低饱和背景 + 深色文字）
@@ -1164,13 +1236,28 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
               </div>
             )}
 
-            {/* 卡片叙事 */}
-            {card.narrative && (
-              <div className="detail-section">
-                <div className="section-title">关键结论</div>
-                <div className="section-text">{sanitizeContent(card.narrative)}</div>
-              </div>
-            )}
+            {/* 卡片叙事（可编辑） */}
+            <div className="detail-section">
+              <div className="section-title">关键结论</div>
+              <TipTapEditor
+                content={card.narrative || ''}
+                onSave={(html) => updateCard(cardId, { narrative: html }).catch(e => console.error('保存 narrative 失败:', e))}
+                placeholder="输入关键结论..."
+              />
+            </div>
+
+            {/* 待解决问题（可编辑） */}
+            <div className="detail-section">
+              <div className="section-title">待解决问题</div>
+              <TipTapEditor
+                content={(card.unresolved_questions || []).filter(Boolean).map(q => `<p>${q}</p>`).join('')}
+                onSave={(html) => {
+                  const questions = extractParagraphs(html)
+                  updateCard(cardId, { unresolved_questions: questions }).catch(e => console.error('保存 unresolved_questions 失败:', e))
+                }}
+                placeholder="输入待解决问题，每段一个..."
+              />
+            </div>
 
             <hr className="overview-divider" />
 

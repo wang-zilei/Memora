@@ -13,7 +13,7 @@
 | Chrome 扩展 | ✅ | 悬浮球 + 9 平台自动检测 + 抓取 |
 | 意图识别 Pipeline | ✅ | 4 步流水线（切分→分类→生成→去重） |
 | 数据库路径迁移 | ✅ | `%APPDATA%/com.memora.app/` |
-| 富文本编辑（narrative + unresolved_questions） | ⬜ | TipTap 方案待开发 |
+| 富文本编辑（narrative + unresolved_questions） | ✅ | TipTap B/I/U/高亮，后端已就绪，前端已完成 |
 
 ---
 
@@ -25,7 +25,7 @@
 
 **筛选计数修复**：`http_get_cards` / `get_cards` 的 COUNT 查询缺少参数绑定，筛选意图分类时计数始终为 0。改为 `sqlx::query` + `bind_json` 绑定参数后正常。
 
-**富文本编辑方案（待开发）**：详情页 narrative 和 unresolved_questions 字段支持所见即所得编辑。
+**富文本编辑方案（已完成）**：详情页 narrative 和 unresolved_questions 字段支持所见即所得编辑。
 
 | 事项 | 内容 |
 |------|------|
@@ -56,18 +56,18 @@
 
 **后端需改动**：
 
-| 位置 | 改动 |
-|------|------|
-| `http_update_card` (Rust) | 新增 `unresolved_questions` 字段处理（JSON serialize） |
-| `update_card` Tauri command | 新增 `narrative` + `unresolved_questions` 参数 |
+| 位置 | 改动 | 状态 |
+|------|------|------|
+| `http_update_card` (Rust) | 新增 `unresolved_questions` 字段处理（JSON serialize） | ✅ |
+| `update_card` Tauri command | 新增 `narrative` + `unresolved_questions` 参数 | ✅ |
 
 **前端需改动**：
 
-| 文件 | 改动 |
-|------|------|
-| `package.json` | + `@tiptap/react` `@tiptap/starter-kit` `@tiptap/extension-underline` `@tiptap/extension-highlight` |
-| `App.tsx` CardDetail | narrative / unresolved_questions 用 `<Editor>` 替换 `<div>`，加格式工具栏 |
-| `index.css` | 编辑器工具栏样式（`.tiptap-editor` / `.tiptap-toolbar`） |
+| 文件 | 改动 | 状态 |
+|------|------|------|
+| `package.json` | + `@tiptap/react` `@tiptap/starter-kit` `@tiptap/extension-underline` `@tiptap/extension-highlight` | ✅ |
+| `App.tsx` CardDetail | narrative / unresolved_questions 用 `<Editor>` 替换 `<div>`，加格式工具栏 | ✅ |
+| `index.css` | 编辑器工具栏样式（`.tiptap-editor` / `.tiptap-toolbar`） | ✅ |
 
 **完成标准**：详情页 narrative 和 unresolved_questions 可编辑，工具栏含 B/I/U/高亮，保存后内容正确显示。
 

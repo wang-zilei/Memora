@@ -872,6 +872,8 @@ async fn update_card(
     tags: Option<Vec<String>>,
     starred: Option<bool>,
     archived: Option<bool>,
+    narrative: Option<String>,
+    unresolved_questions: Option<Vec<String>>,
 ) -> Result<CardDetailResponse, String> {
     let state = app.state::<AppState>();
 
@@ -893,6 +895,14 @@ async fn update_card(
     if let Some(a) = archived {
         set_clauses.push("archived = ?".to_string());
         params.push(serde_json::Value::Number(serde_json::Number::from(if a { 1 } else { 0 })));
+    }
+    if let Some(ref n) = narrative {
+        set_clauses.push("narrative = ?".to_string());
+        params.push(serde_json::Value::String(n.clone()));
+    }
+    if let Some(ref uq) = unresolved_questions {
+        set_clauses.push("unresolved_questions_json = ?".to_string());
+        params.push(serde_json::to_value(uq).unwrap());
     }
 
     if !set_clauses.is_empty() {
@@ -1633,6 +1643,10 @@ async fn http_update_card(
     if let Some(v) = body.get("starred") {
         set_parts.push("starred = ?".to_string());
         params.push(serde_json::Value::Number(serde_json::Number::from(if v.as_bool().unwrap_or(false) { 1 } else { 0 })));
+    }
+    if let Some(v) = body.get("unresolved_questions") {
+        set_parts.push("unresolved_questions_json = ?".to_string());
+        params.push(serde_json::to_value(v).unwrap_or(serde_json::json!("[]")));
     }
 
     if set_parts.len() == 1 {
