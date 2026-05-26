@@ -449,6 +449,51 @@ fn clean_content(content: &str) -> String {
     text.trim().to_string()
 }
 
+/// 质检清洗：移除 AI 输出中的 markdown 格式标识和转义字符
+/// 作为 Prompt 约束之外的兜底机制
+fn sanitize_content(text: &str) -> String {
+    if text.is_empty() {
+        return text.to_string();
+    }
+    let mut t = text.to_string();
+
+    // 1. 字面 \n \r → 实际字符
+    t = t.replace("\\n", "\n");
+    t = t.replace("\\r", "");
+
+    // 2. Markdown 标题标记 → 去掉 # 号
+    if let Ok(re) = regex::Regex::new(r"(?m)^#{1,6}\s+") {
+        t = re.replace_all(&t, "").to_string();
+    }
+
+    // 3. 粗体 **text** → text
+    if let Ok(re) = regex::Regex::new(r"\*\*(.+?)\*\*") {
+        t = re.replace_all(&t, "$1").to_string();
+    }
+
+    // 4. 行内斜体 *text*
+    if let Ok(re) = regex::Regex::new(r"([^\n*])\*([^*\n]+?)\*([^\n*])") {
+        t = re.replace_all(&t, "$1$2$3").to_string();
+    }
+
+    // 5. 水平分割线
+    if let Ok(re) = regex::Regex::new(r"(?m)^[-*_]{3,}\s*$") {
+        t = re.replace_all(&t, "").to_string();
+    }
+
+    // 6. AI 常见输出前缀
+    if let Ok(re) = regex::Regex::new(r"(?m)^(好的[，,]\s*|当然[，,]\s*|以下是我的[^：:]*[：:]\s*|以下是[^：:]*[：:]\s*)") {
+        t = re.replace_all(&t, "").to_string();
+    }
+
+    // 7. 压缩多余空行
+    if let Ok(re) = regex::Regex::new(r"\n{3,}") {
+        t = re.replace_all(&t, "\n\n").to_string();
+    }
+
+    t.trim().to_string()
+}
+
 /// 合并连续相同角色的消息
 fn merge_consecutive(messages: Vec<Message>) -> Vec<Message> {
     if messages.is_empty() {
@@ -480,7 +525,7 @@ fn clean_conversation(raw: &RawConversation) -> (Vec<Message>, String) {
     let cleaned: Vec<Message> = raw_messages.iter().map(|msg| {
         Message {
             role: normalize_role(&msg.role).to_string(),
-            content: clean_content(&msg.content),
+            content: sanitize_content(&clean_content(&msg.content)),
             timestamp: msg.timestamp.clone(),
         }
     })
@@ -1947,6 +1992,22 @@ async fn http_summarize_card(
     }
 }
 
+async fn http_open_url(
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let url = body
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if url.is_empty() {
+        return Ok(Json(json!({ "success": false, "error": "url is required" })));
+    }
+    match open::that(url) {
+        Ok(_) => Ok(Json(json!({ "success": true }))),
+        Err(e) => Ok(Json(json!({ "success": false, "error": format!("failed to open url: {}", e) }))),
+    }
+}
+
 pub async fn start_http_server(pool: SqlitePool) {
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -1967,6 +2028,7 @@ pub async fn start_http_server(pool: SqlitePool) {
         .route("/api/settings", get(http_get_settings))
         .route("/api/settings", put(http_update_settings))
         .route("/api/settings/validate", post(http_validate_settings))
+        .route("/api/open-url", post(http_open_url))
         .layer(cors)
         .with_state(pool);
 
@@ -2436,15 +2498,15 @@ async fn generate_card(
     let card_type = normalize_card_type(&raw_card_type, card_type_zh);
 
     let mut card = PipelineCardResult {
-        title: parsed["title"].as_str().unwrap_or("未命名对话").to_string(),
+        title: sanitize_content(parsed["title"].as_str().unwrap_or("未命名对话")),
         card_type,
-        original_question: parsed["original_question"].as_str()
-            .or(parsed["originalQuestion"].as_str()).unwrap_or("").to_string(),
-        narrative: parsed["narrative"].as_str().unwrap_or("").to_string(),
+        original_question: sanitize_content(parsed["original_question"].as_str()
+            .or(parsed["originalQuestion"].as_str()).unwrap_or("")),
+        narrative: sanitize_content(parsed["narrative"].as_str().unwrap_or("")),
         tags: parsed["tags"].as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| sanitize_content(s))).collect())
             .unwrap_or_else(|| vec![platform.to_string()]),
-        full_output: parsed["full_output"].as_str().map(|s| s.to_string()),
+        full_output: parsed["full_output"].as_str().map(|s| sanitize_content(s)),
         summary_confidence: parsed["summary_confidence"].as_f64(),
         source: None,
     };
