@@ -8,6 +8,7 @@ use uuid::Uuid;
 /// Application state holding the SQLite connection pool
 struct AppState {
     db: SqlitePool,
+    db_path: String,
 }
 
 // Aliases for clarity
@@ -783,10 +784,11 @@ async fn get_cards(
 
     let where_sql = where_clauses.join(" AND ");
     let count_query = format!("SELECT COUNT(*) as cnt FROM knowledge_cards WHERE {}", where_sql);
-    let total: i64 = sqlx::query_scalar(&count_query)
-        .fetch_one(&state.db)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut cq = sqlx::query(&count_query);
+    for v in &params {
+        cq = bind_json(cq, v);
+    }
+    let total: i64 = cq.fetch_one(&state.db).await.map_err(|e| e.to_string())?.get("cnt");
 
     let select_cols = "id, title, original_question, card_type, narrative, summarize_error, tags_json, source_platform, source_url, source_conversation_id, source_captured_at, summary_confidence, created_at, updated_at, starred, archived";
     let list_query = format!(
@@ -1475,10 +1477,12 @@ async fn http_get_cards(
 
     let where_sql = where_clauses.join(" AND ");
     let count_query = format!("SELECT COUNT(*) as cnt FROM knowledge_cards WHERE {}", where_sql);
-    let total: i64 = sqlx::query_scalar(&count_query)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "error": e.to_string() }))))?;
+    let mut cq = sqlx::query(&count_query);
+    for v in &params {
+        cq = bind_json(cq, v);
+    }
+    let row = cq.fetch_one(&pool).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "error": e.to_string() }))))?;
+    let total: i64 = row.get("cnt");
 
     let select_cols = "id, title, original_question, card_type, narrative, summarize_error, tags_json, source_platform, source_url, source_conversation_id, source_captured_at, summary_confidence, created_at, updated_at, starred, archived";
     let list_query = format!(
@@ -2075,7 +2079,7 @@ async fn get_status(app: AppHandle) -> Result<StatusResponse, String> {
     Ok(StatusResponse {
         success: true,
         version: env!("CARGO_PKG_VERSION").to_string(),
-        db_path: "sqlite:knowledge_base.db".to_string(),
+        db_path: format!("sqlite:{}", state.db_path),
         card_count,
     })
 }
@@ -3029,11 +3033,23 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let db_path = std::env::current_exe()
+            // Use platform-appropriate app data dir (Windows: %APPDATA%/com.memora.app/)
+            let app_data_dir = app.path().app_data_dir()
+                .expect("Failed to resolve app data directory");
+            std::fs::create_dir_all(&app_data_dir)
+                .expect("Failed to create app data directory");
+            let db_path = app_data_dir.join("knowledge_base.db");
+
+            // Migrate from old exe-adjacent database if it exists
+            let old_db = std::env::current_exe()
                 .ok()
-                .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-                .join("knowledge_base.db");
+                .and_then(|p| p.parent().map(|d| d.join("knowledge_base.db")))
+                .unwrap_or_default();
+            if old_db.exists() && !db_path.exists() {
+                std::fs::copy(&old_db, &db_path)
+                    .expect("Failed to migrate database from old location");
+                tracing::info!("Database migrated: {} → {}", old_db.display(), db_path.display());
+            }
 
             // Pre-create the db file to avoid connection issues
             if !db_path.exists() {
@@ -3049,7 +3065,7 @@ fn main() {
                     .connect(format!("sqlite:{}", db_path.to_string_lossy().replace('\\', "/")).as_str())
             ).unwrap_or_else(|e| panic!("Failed to connect to database at {}: {}", db_path.display(), e));
 
-            app.manage(AppState { db: pool.clone() });
+            app.manage(AppState { db: pool.clone(), db_path: db_path.to_string_lossy().to_string() });
 
             let pool_clone = pool.clone();
             tauri::async_runtime::spawn(async move {

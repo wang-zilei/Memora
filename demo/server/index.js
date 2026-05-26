@@ -342,6 +342,23 @@ app.post('/api/settings/validate', async (req, res) => {
   }
 });
 
+// ============ 打开外部链接（跨平台兼容） ============
+
+app.post('/api/open-url', (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.json({ success: false, error: 'url is required' });
+  // 在 Node.js 环境中，用系统命令打开浏览器
+  const cmd = process.platform === 'win32'
+    ? `start "" "${url}"`
+    : process.platform === 'darwin'
+      ? `open "${url}"`
+      : `xdg-open "${url}"`;
+  require('child_process').exec(cmd, (err) => {
+    if (err) return res.json({ success: false, error: err.message });
+    res.json({ success: true });
+  });
+});
+
 // ============ 服务状态 ============
 
 app.get('/api/status', (req, res) => {

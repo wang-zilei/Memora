@@ -23,6 +23,7 @@ function cleanConversation(raw) {
   let messages = rawMessages.map(msg => {
     let role = normalizeRole(msg.role);
     let content = cleanContent(msg.content || '');
+    content = sanitizeContent(content);
 
     return { role, content };
   }).filter(msg => msg.content.trim().length > 0);
@@ -95,6 +96,40 @@ function cleanContent(content) {
     .trim();
 
   return content;
+}
+
+/**
+ * 质检清洗：移除 AI 输出中的 markdown 格式标识和转义字符
+ * 作为 Prompt 约束之外的兜底机制
+ */
+function sanitizeContent(content) {
+  if (!content || typeof content !== 'string') return content;
+
+  let t = content;
+
+  // 1. 字面 \n \r → 实际字符
+  t = t.replace(/\\n/g, '\n');
+  t = t.replace(/\\r/g, '');
+
+  // 2. Markdown 标题标记 → 去掉 # 号，保留文字
+  t = t.replace(/^#{1,6}\s+/gm, '');
+
+  // 3. 粗体 **text** → text
+  t = t.replace(/\*\*(.+?)\*\*/g, '$1');
+
+  // 4. 行内斜体 *text*（非行首的 *，即不是列表标记）
+  t = t.replace(/([^\n*])\*([^*\n]+?)\*([^\n*])/g, '$1$2$3');
+
+  // 5. 水平分割线（单独一行的 *** 或 --- 或 ___）
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '');
+
+  // 6. AI 常见输出前缀
+  t = t.replace(/^(好的[，,]\s*|当然[，,]\s*|以下是我的[^：:]*[：:]\s*|以下是[^：:]*[：:]\s*)/gm, '');
+
+  // 7. 压缩多余空行
+  t = t.replace(/\n{3,}/g, '\n\n');
+
+  return t.trim();
 }
 
 /**

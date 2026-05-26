@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import './index.css'
@@ -6,8 +7,26 @@ import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCa
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
 import { LogoIcon, LogoWordmark, NavIcon } from './Logo'
+import likeIcon from './assets/like.svg'
+import likedIcon from './assets/liked.svg'
+import trashIcon from './assets/delete.svg'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
+
+/** 质检清洗：移除 markdown 格式标识和转义字符（前端兜底） */
+function sanitizeContent(text: string): string {
+  if (!text) return ''
+  let t = text
+  t = t.replace(/\\n/g, '\n')
+  t = t.replace(/\\r/g, '')
+  t = t.replace(/^#{1,6}\s+/gm, '')
+  t = t.replace(/\*\*(.+?)\*\*/g, '$1')
+  t = t.replace(/([^\n*])\*([^*\n]+?)\*([^\n*])/g, '$1$2$3')
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '')
+  t = t.replace(/^(好的[，,]\s*|当然[，,]\s*|以下是我的[^：:]*[：:]\s*|以下是[^：:]*[：:]\s*)/gm, '')
+  t = t.replace(/\n{3,}/g, '\n\n')
+  return t.trim()
+}
 
 // 意图标签颜色（柔和 tint 方案：低饱和背景 + 深色文字）
 const INTENT_COLORS: Record<string, string> = {
@@ -50,6 +69,25 @@ function fitTags(tags: string[], budget: number = TAG_CHAR_BUDGET): string[] {
     result.push(tag)
   }
   return result
+}
+
+function ConfirmModal({ message, onConfirm, onCancel }: {
+  message: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+        <img src={trashIcon} className="confirm-icon" alt="" />
+        <p className="confirm-message">{message}</p>
+        <div className="confirm-actions">
+          <button className="confirm-btn confirm-btn--cancel" onClick={onCancel}>取消</button>
+          <button className="confirm-btn confirm-btn--danger" onClick={onConfirm}>确认删除</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function App() {
@@ -266,6 +304,10 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
 }) {
   const totalPages = Math.ceil(totalCards / 20)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  // 本地覆盖状态：避免触发 App 重渲染导致 CardList 被销毁 remount
+  const [starOverrides, setStarOverrides] = useState<Record<string, boolean>>({})
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -275,31 +317,48 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
     return () => document.removeEventListener('click', handler)
   }, [menuCardId])
 
-  const handleToggleStar = async (cardId: string, e: React.MouseEvent) => {
+  const getStarred = (c: KnowledgeCardSummary) =>
+    starOverrides[c.id] !== undefined ? starOverrides[c.id] : c.starred
+
+  const visibleCards = cards.filter(c => !hiddenIds.has(c.id))
+
+  const handleToggleStar = (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     const card = cards.find(c => c.id === cardId)
     if (!card) return
-    try {
-      await updateCard(cardId, { starred: !card.starred })
-      // 更新本地状态
-      setCards(prev => prev.map(c => c.id === cardId ? { ...c, starred: !c.starred } : c))
-    } catch (err) {
+    const newStarred = !getStarred(card)
+    setStarOverrides(prev => ({ ...prev, [cardId]: newStarred }))
+    updateCard(cardId, { starred: newStarred }).catch(err => {
+      setStarOverrides(prev => {
+        const next = { ...prev }
+        delete next[cardId]
+        return next
+      })
       console.error('Failed to toggle star:', err)
-    }
+    })
+  }
+
+  const handleDelete = (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDeleteTargetId(cardId)
     setMenuCardId(null)
   }
 
-  const handleDelete = async (cardId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm('确定删除此知识卡片？')) return
-    try {
-      await deleteCard(cardId)
-      setCards(prev => prev.filter(c => c.id !== cardId))
-      setTotalCards(prev => prev - 1)
-    } catch (err) {
+  const handleConfirmDelete = () => {
+    if (!deleteTargetId) return
+    const targetId = deleteTargetId
+    setHiddenIds(prev => new Set([...prev, targetId]))
+    setDeleteTargetId(null)
+    setTotalCards(prev => prev - 1)
+    deleteCard(targetId).catch(err => {
+      setHiddenIds(prev => {
+        const next = new Set(prev)
+        next.delete(targetId)
+        return next
+      })
+      setTotalCards(prev => prev + 1)
       console.error('Failed to delete card:', err)
-    }
-    setMenuCardId(null)
+    })
   }
 
   const formatCardDate = (dateStr: string) => {
@@ -319,7 +378,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   const formatNarrative = (narrative: string) => {
     if (!narrative) return ''
     // 取前 120 字，截断处尽量在标点
-    const text = narrative.replace(/\n+/g, ' ').trim()
+    const cleaned = sanitizeContent(narrative); const text = cleaned.replace(/\n+/g, ' ').trim()
     if (text.length <= 120) return text
     const cut = text.slice(0, 120)
     const lastPunct = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'), cut.lastIndexOf('，'))
@@ -347,7 +406,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
         </div>
       )}
 
-      {cards.length === 0 ? (
+      {visibleCards.length === 0 ? (
         <div className="empty-state">
           <div className="icon">📭</div>
           <h3>暂无知识卡片</h3>
@@ -362,7 +421,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
             {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
           </div>
           <div className="cards-grid">
-            {cards.map(card => (
+            {visibleCards.map(card => (
               <div
                 key={card.id}
                 className={`card-item ${card.summarize_error ? 'card-item--error' : ''}`}
@@ -387,12 +446,14 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                     {menuCardId === card.id && (
                       <div className="card-menu" onClick={e => e.stopPropagation()}>
                         <button
-                          className={`card-menu-item ${card.starred ? 'card-menu-item--starred' : ''}`}
+                          className={`card-menu-item ${getStarred(card) ? 'card-menu-item--starred' : ''}`}
                           onClick={(e) => handleToggleStar(card.id, e)}
                         >
-                          {card.starred ? '★ 已收藏' : '☆ 收藏'}
+                          <img src={getStarred(card) ? likedIcon : likeIcon} className="menu-icon" alt="" />
+                          {getStarred(card) ? '已收藏' : '收藏'}
                         </button>
                         <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
+                          <img src={trashIcon} className="menu-icon" alt="" />
                           删除
                         </button>
                       </div>
@@ -423,7 +484,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
 
                 {/* 底部日期 */}
                 <div className="card-footer">
-                  <span className="card-date">{formatCardDate(card.created_at)}</span>
+                  <span className="card-date">{formatCardDate(card.source?.captured_at || card.created_at)}</span>
                 </div>
               </div>
             ))}
@@ -446,6 +507,13 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
           )}
         </>
       )}
+      {deleteTargetId && (
+        <ConfirmModal
+          message="确定删除此知识卡片？"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      )}
     </div>
   )
 }
@@ -456,6 +524,8 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadCards()
@@ -481,27 +551,40 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
     }
   }
 
-  const handleToggleStar = async (cardId: string, e: React.MouseEvent) => {
+  const visibleCards = cards.filter(c => !hiddenIds.has(c.id))
+
+  const handleToggleStar = (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    try {
-      await updateCard(cardId, { starred: false }) // 收藏页取消收藏
-      setCards(prev => prev.filter(c => c.id !== cardId))
-    } catch (err) {
+    setHiddenIds(prev => new Set([...prev, cardId]))
+    updateCard(cardId, { starred: false }).catch(err => {
+      setHiddenIds(prev => {
+        const next = new Set(prev)
+        next.delete(cardId)
+        return next
+      })
       console.error('Failed to unstar card:', err)
-    }
+    })
+  }
+
+  const handleDelete = (cardId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDeleteTargetId(cardId)
     setMenuCardId(null)
   }
 
-  const handleDelete = async (cardId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!confirm('确定删除此知识卡片？')) return
-    try {
-      await deleteCard(cardId)
-      setCards(prev => prev.filter(c => c.id !== cardId))
-    } catch (err) {
+  const handleConfirmDelete = () => {
+    if (!deleteTargetId) return
+    const targetId = deleteTargetId
+    setHiddenIds(prev => new Set([...prev, targetId]))
+    setDeleteTargetId(null)
+    deleteCard(targetId).catch(err => {
+      setHiddenIds(prev => {
+        const next = new Set(prev)
+        next.delete(targetId)
+        return next
+      })
       console.error('Failed to delete card:', err)
-    }
-    setMenuCardId(null)
+    })
   }
 
   const formatCardDate = (dateStr: string) => {
@@ -520,7 +603,7 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
 
   const formatNarrative = (narrative: string) => {
     if (!narrative) return ''
-    const text = narrative.replace(/\n+/g, ' ').trim()
+    const cleaned = sanitizeContent(narrative); const text = cleaned.replace(/\n+/g, ' ').trim()
     if (text.length <= 120) return text
     const cut = text.slice(0, 120)
     const lastPunct = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('！'), cut.lastIndexOf('？'), cut.lastIndexOf('，'))
@@ -532,7 +615,7 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
   return (
     <div className="favorites-page">
       <h1 className="favorites-title">收藏</h1>
-      {cards.length === 0 ? (
+      {visibleCards.length === 0 ? (
         <div className="empty-state">
           <div className="icon"></div>
           <h3>暂无收藏卡片</h3>
@@ -540,7 +623,7 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
         </div>
       ) : (
         <div className="cards-grid">
-          {cards.map(card => (
+          {visibleCards.map(card => (
             <div
               key={card.id}
               className={`card-item ${card.summarize_error ? 'card-item--error' : ''}`}
@@ -566,9 +649,11 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
                         className="card-menu-item card-menu-item--starred"
                         onClick={(e) => handleToggleStar(card.id, e)}
                       >
-                        ★ 已收藏
+                        <img src={likedIcon} className="menu-icon" alt="" />
+                        已收藏
                       </button>
                       <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
+                        <img src={trashIcon} className="menu-icon" alt="" />
                         删除
                       </button>
                     </div>
@@ -596,11 +681,18 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
               </div>
 
               <div className="card-footer">
-                <span className="card-date">{formatCardDate(card.created_at)}</span>
+                <span className="card-date">{formatCardDate(card.source?.captured_at || card.created_at)}</span>
               </div>
             </div>
           ))}
         </div>
+      )}
+      {deleteTargetId && (
+        <ConfirmModal
+          message="确定删除此知识卡片？"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTargetId(null)}
+        />
       )}
     </div>
   )
@@ -701,7 +793,6 @@ function CardDetail({ cardId, onBack }: {
 }) {
   const [card, setCard] = useState<KnowledgeCardDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showRawMessages, setShowRawMessages] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'conversation'>('overview')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -709,6 +800,8 @@ function CardDetail({ cardId, onBack }: {
   const [editTitleValue, setEditTitleValue] = useState('')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [showTypeMenu, setShowTypeMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   useEffect(() => {
     loadCard()
@@ -726,14 +819,14 @@ function CardDetail({ cardId, onBack }: {
     }
   }
 
-  const handleDelete = async () => {
-    if (!confirm('确定删除此知识卡片？')) return
-    try {
-      await deleteCard(cardId)
-      onBack()
-    } catch (e) {
-      console.error('Failed to delete card:', e)
-    }
+  const handleDelete = () => {
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = () => {
+    setShowDeleteConfirm(false)
+    onBack()
+    deleteCard(cardId).catch(e => console.error('Failed to delete card:', e))
   }
 
   const handleResummarize = async () => {
@@ -748,14 +841,26 @@ function CardDetail({ cardId, onBack }: {
     }
   }
 
-  const handleToggleFavorite = async () => {
+  const handleToggleFavorite = () => {
     if (!card) return
-    try {
-      await updateCard(cardId, { starred: !card.starred })
-      setCard({ ...card, starred: !card.starred })
-      setShowDropdown(false)
-    } catch (e) {
+    const newStarred = !card.starred
+    flushSync(() => {
+      setCard({ ...card, starred: newStarred })
+    })
+    updateCard(cardId, { starred: newStarred }).catch(e => {
+      setCard({ ...card, starred: !newStarred })
       console.error('Failed to toggle favorite:', e)
+    })
+  }
+
+  const handleChangeCardType = async (newType: string) => {
+    if (!card || newType === card.card_type) { setShowTypeMenu(false); return }
+    try {
+      await updateCard(cardId, { card_type: newType })
+      setCard({ ...card, card_type: newType })
+      setShowTypeMenu(false)
+    } catch (e) {
+      console.error('Failed to change card type:', e)
     }
   }
 
@@ -940,11 +1045,11 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                   />
                   <div className="dropdown-menu">
                     <button className={`dropdown-item ${card.starred ? 'dropdown-item--starred' : ''}`} onClick={handleToggleFavorite}>
-                      <span className="material-symbols-rounded">{card.starred ? 'star' : 'star_border'}</span>
+                      <img src={card.starred ? likedIcon : likeIcon} className="dropdown-icon" alt="" />
                       {card.starred ? '取消收藏' : '收藏'}
                     </button>
                     <button className="dropdown-item danger" onClick={() => { setShowDropdown(false); handleDelete(); }}>
-                      <span className="material-symbols-rounded">delete</span>
+                      <img src={trashIcon} className="dropdown-icon" alt="" />
                       删除
                     </button>
                   </div>
@@ -999,11 +1104,63 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
 
         {activeTab === 'overview' && (
           <>
+            {/* 卡片类型（可切换） */}
+            <div className="detail-section" style={{ marginBottom: 20 }}>
+              <div className="dropdown-wrapper" style={{ display: 'inline-block' }}>
+                <button
+                  className="card-type-badge card-type-badge--editable"
+                  style={{
+                    background: INTENT_COLORS[card.card_type] || '#e8e8e8',
+                    color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    lineHeight: '20px',
+                  }}
+                  onClick={() => setShowTypeMenu(!showTypeMenu)}
+                >
+                  {card.card_type}
+                  <span className="material-symbols-rounded" style={{ fontSize: 14, marginLeft: 4, verticalAlign: 'middle' }}>arrow_drop_down</span>
+                </button>
+                {showTypeMenu && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowTypeMenu(false)} />
+                    <div className="dropdown-menu" style={{ minWidth: 140 }}>
+                      {CARD_TYPES.map(t => (
+                        <button
+                          key={t}
+                          className={`dropdown-item ${t === card.card_type ? 'dropdown-item--active' : ''}`}
+                          style={{
+                            background: t === card.card_type ? '#f0f0f0' : undefined,
+                            fontWeight: t === card.card_type ? 600 : undefined,
+                          }}
+                          onClick={() => handleChangeCardType(t)}
+                        >
+                          <span style={{
+                            display: 'inline-block',
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: INTENT_COLORS[t] || '#e8e8e8',
+                            marginRight: 8,
+                          }} />
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* 核心问题 */}
             {card.original_question && (
               <div className="detail-section">
                 <div className="section-title">核心问题</div>
-                <div className="section-text">{card.original_question}</div>
+                <div className="section-text">{sanitizeContent(card.original_question)}</div>
               </div>
             )}
 
@@ -1011,7 +1168,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
             {card.narrative && (
               <div className="detail-section">
                 <div className="section-title">关键结论</div>
-                <div className="section-text">{card.narrative}</div>
+                <div className="section-text">{sanitizeContent(card.narrative)}</div>
               </div>
             )}
 
@@ -1040,23 +1197,34 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
 
             {/* 回到原始对话 */}
             {card.source?.url && (
-              <a className="play-link" href={card.source.url} target="_blank" rel="noopener noreferrer">
+              <button
+                className="play-link"
+                onClick={async () => {
+                  const url = card.source!.url
+                  try {
+                    await fetch('/api/open-url', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ url }),
+                    })
+                  } catch {
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                  }
+                }}
+              >
                 <span className="material-symbols-rounded">link</span>
                 回到原始对话
-              </a>
+              </button>
             )}
           </>
         )}
 
         {activeTab === 'conversation' && (
           <div className="messages-section">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ marginBottom: 12 }}>
               <div className="section-label" style={{ margin: 0 }}>对话记录</div>
-              <button className="back-btn" onClick={() => setShowRawMessages(!showRawMessages)}>
-                {showRawMessages ? '查看清洗版' : '查看原始版'}
-              </button>
             </div>
-            {(showRawMessages ? card.rawMessages : card.cleanMessages)?.map((msg, i) => (
+            {(card.cleanMessages || []).map((msg, i) => (
               <div key={i} className={`message-pair ${msg.role === 'user' ? 'msg-user' : 'msg-assistant'}`} style={{
                 marginBottom: 8,
                 padding: '8px 12px',
@@ -1065,12 +1233,19 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                 borderLeft: msg.role === 'user' ? '3px solid #667eea' : '3px solid #43a047',
               }}>
                 <div className="msg-label">{msg.role === 'user' ? '用户' : platformName}</div>
-                <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{msg.content}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{sanitizeContent(msg.content)}</div>
               </div>
             ))}
           </div>
         )}
       </div>
+      {showDeleteConfirm && (
+        <ConfirmModal
+          message="确定删除此知识卡片？"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   )
 }

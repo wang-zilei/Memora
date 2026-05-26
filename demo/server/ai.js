@@ -6,6 +6,40 @@
 const https = require('https');
 const http = require('http');
 const fs = require('fs');
+
+/**
+ * 质检清洗：移除 AI 输出中的 markdown 格式标识和转义字符
+ * 作为 Prompt 约束之外的兜底机制
+ */
+function sanitizeContent(content) {
+  if (!content || typeof content !== 'string') return content;
+
+  let t = content;
+
+  // 1. 字面 \n \r → 实际字符
+  t = t.replace(/\\n/g, '\n');
+  t = t.replace(/\\r/g, '');
+
+  // 2. Markdown 标题标记 → 去掉 # 号，保留文字
+  t = t.replace(/^#{1,6}\s+/gm, '');
+
+  // 3. 粗体 **text** → text
+  t = t.replace(/\*\*(.+?)\*\*/g, '$1');
+
+  // 4. 行内斜体 *text*（非行首的 *，即不是列表标记）
+  t = t.replace(/([^\n*])\*([^*\n]+?)\*([^\n*])/g, '$1$2$3');
+
+  // 5. 水平分割线（单独一行的 *** 或 --- 或 ___）
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '');
+
+  // 6. AI 常见输出前缀
+  t = t.replace(/^(好的[，,]\s*|当然[，,]\s*|以下是我的[^：:]*[：:]\s*|以下是[^：:]*[：:]\s*)/gm, '');
+
+  // 7. 压缩多余空行
+  t = t.replace(/\n{3,}/g, '\n\n');
+
+  return t.trim();
+}
 const path = require('path');
 
 // Prompt 文件根目录
@@ -277,9 +311,12 @@ async function classifyIntent({ apiKey, apiUrl, model, messages, platform }) {
     maxTokens: 100,
   });
 
-  // 提取英文 key（去除可能的空白和 markdown）
-  const key = response.trim().replace(/`/g, '').split('\n')[0].toLowerCase();
-  return INTENT_MAP[key] ? key : 'other';
+  // 提取 key，支持英文 key 和中文标签两种格式
+  const key = response.trim().replace(/`/g, '').replace(/。/g, '').split('\n')[0].toLowerCase();
+  if (INTENT_MAP[key]) return key;
+  // 反向查找中文标签
+  const byZh = Object.entries(INTENT_MAP).find(([, v]) => v.zh === response.trim());
+  return byZh ? byZh[0] : 'other';
 }
 
 // =================== Step 3: 卡片生成 ===================
@@ -298,15 +335,17 @@ async function generateCard({ apiKey, apiUrl, model, messages, platform, intentD
   const promptRaw = fs.readFileSync(promptPath, 'utf-8');
   const systemPrompt = extractPromptBlock(promptRaw);
 
-  // 替换 {{conversation}} 占位符
+  // 替换 {{conversation}} 占位符（system prompt 中保留）
   const finalPrompt = systemPrompt.replace('{{conversation}}', conversationText);
+  // 同时在 user prompt 中传入对话数据，确保 LLM 不会遗漏
+  const userPrompt = `对话数据：\n\n${conversationText}\n\n请按 JSON 格式输出知识卡片。`;
 
   const response = await callOpenAICompatible({
     apiKey,
     apiUrl,
     model,
     systemPrompt: finalPrompt,
-    userPrompt: '请按 JSON 格式输出知识卡片。',
+    userPrompt,
     maxTokens: 6000,
   });
 
@@ -348,16 +387,16 @@ async function generateCard({ apiKey, apiUrl, model, messages, platform, intentD
 
   // 提取字段（兼容旧格式的 insights/outputs，转为 narrative）
   const card = {
-    title: parsed.title || '未命名对话',
+    title: sanitizeContent(parsed.title || '未命名对话'),
     card_type: cardType,
-    original_question: parsed.original_question || parsed.originalQuestion || '',
-    narrative: parsed.narrative || '',
-    tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+    original_question: sanitizeContent(parsed.original_question || parsed.originalQuestion || ''),
+    narrative: sanitizeContent(parsed.narrative || ''),
+    tags: Array.isArray(parsed.tags) ? parsed.tags.map(t => sanitizeContent(String(t))) : [],
   };
 
   // content_creation 和 text_processing 额外有 full_output 字段
   if (parsed.full_output) {
-    card.full_output = parsed.full_output;
+    card.full_output = sanitizeContent(parsed.full_output);
   }
 
   return card;
