@@ -251,9 +251,9 @@ select:focus-visible,
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 22px;
+  width: 20px;
+  height: 20px;
   color: #8a7151;
-  line-height: 1;
   opacity: 0.9;
 }
 
@@ -348,9 +348,12 @@ select:focus-visible,
   border-color: rgba(217, 95, 50, 0.26);
 }
 
-.settings-btn .material-symbols-rounded {
-  font-size: 20px;
-  line-height: 1;
+.app-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* ============ Search and list ============ */
@@ -458,12 +461,12 @@ select:focus-visible,
   cursor: wait;
 }
 
-.list-refresh-btn .material-symbols-rounded {
-  font-size: 17px;
-  line-height: 1;
+.list-refresh-btn .app-icon {
+  width: 17px;
+  height: 17px;
 }
 
-.list-refresh-btn.is-refreshing .material-symbols-rounded {
+.list-refresh-btn.is-refreshing .app-icon {
   animation: refreshSpin 0.8s linear infinite;
 }
 
@@ -762,8 +765,9 @@ select:focus-visible,
   font-weight: 750;
 }
 
-.dropdown-item .material-symbols-rounded {
-  font-size: 18px;
+.dropdown-item .app-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .menu-icon {
@@ -915,6 +919,11 @@ select:focus-visible,
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.icon-btn .app-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .detail-title {
@@ -1184,8 +1193,9 @@ select:focus-visible,
   transform: translateY(-1px);
 }
 
-.play-link .material-symbols-rounded {
-  font-size: 16px;
+.play-link .app-icon {
+  width: 16px;
+  height: 16px;
 }
 
 /* ============ TipTap editor ============ */
@@ -1591,8 +1601,9 @@ select:focus-visible,
   transform: none;
 }
 
-.test-btn .material-symbols-rounded {
-  font-size: 17px;
+.test-btn .app-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .test-result,
@@ -1607,9 +1618,10 @@ select:focus-visible,
   animation: fadeIn 0.2s ease;
 }
 
-.test-result .material-symbols-rounded,
-.save-message .material-symbols-rounded {
-  font-size: 18px;
+.test-result .app-icon,
+.save-message .app-icon {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
@@ -1641,9 +1653,10 @@ select:focus-visible,
   font-weight: 800;
 }
 
-.quick-start-title .material-symbols-rounded {
+.quick-start-title .app-icon {
   color: var(--accent);
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 .quick-start-steps {

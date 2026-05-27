@@ -869,6 +869,7 @@ async fn update_card(
     app: AppHandle,
     id: String,
     title: Option<String>,
+    card_type: Option<String>,
     tags: Option<Vec<String>>,
     starred: Option<bool>,
     archived: Option<bool>,
@@ -883,6 +884,10 @@ async fn update_card(
     if let Some(t) = title {
         set_clauses.push("title = ?".to_string());
         params.push(serde_json::Value::String(t));
+    }
+    if let Some(ct) = card_type {
+        set_clauses.push("card_type = ?".to_string());
+        params.push(serde_json::Value::String(ct));
     }
     if let Some(ref t) = tags {
         set_clauses.push("tags_json = ?".to_string());
@@ -1294,7 +1299,9 @@ async fn http_capture(
             "rawId": raw_id,
             "cleanId": clean_id,
             "cardId": card_id,
+            "card_id": card_id,
             "needsApiKey": true,
+            "needs_api_key": true,
         })));
     }
 
@@ -1352,7 +1359,9 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
+                "card_id": card_id,
                 "cardCount": card_count,
+                "card_count": card_count,
                 "card": {
                     "title": first.title,
                     "card_type": first.card_type,
@@ -1375,8 +1384,11 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
+                "card_id": card_id,
                 "cardCount": 0,
+                "card_count": 0,
                 "aiError": "AI 总结未产出有效内容，可能是 API 返回格式异常",
+                "ai_error": "AI 总结未产出有效内容，可能是 API 返回格式异常",
                 "card": {
                     "title": title,
                     "card_type": "其他",
@@ -1398,7 +1410,9 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
+                "card_id": card_id,
                 "aiError": e,
+                "ai_error": e,
                 "card": {
                     "title": title,
                     "card_type": "其他",
@@ -1441,7 +1455,9 @@ async fn http_status(
         "success": true,
         "version": env!("CARGO_PKG_VERSION"),
         "totalCards": card_count,
+        "card_count": card_count,
         "hasApiKey": has_api_key.is_some(),
+        "has_api_key": has_api_key.is_some(),
     })))
 }
 
@@ -2078,6 +2094,7 @@ pub struct StatusResponse {
     pub version: String,
     pub db_path: String,
     pub card_count: i64,
+    pub has_api_key: bool,
 }
 
 #[tauri::command]
@@ -2090,12 +2107,30 @@ async fn get_status(app: AppHandle) -> Result<StatusResponse, String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    let has_api_key: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
+    )
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(StatusResponse {
         success: true,
         version: env!("CARGO_PKG_VERSION").to_string(),
         db_path: format!("sqlite:{}", state.db_path),
         card_count,
+        has_api_key: has_api_key.is_some(),
     })
+}
+
+#[tauri::command]
+async fn open_url(url: String) -> Result<serde_json::Value, String> {
+    if url.trim().is_empty() {
+        return Err("url is required".to_string());
+    }
+    open::that(&url)
+        .map(|_| serde_json::json!({ "success": true }))
+        .map_err(|e| format!("failed to open url: {}", e))
 }
 
 // ============================================================
@@ -3110,6 +3145,7 @@ fn main() {
             validate_settings,
             get_status,
             summarize_card,
+            open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

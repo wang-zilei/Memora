@@ -512,19 +512,22 @@
       }
 
       if (response && response.success) {
+        const needsApiKey = response.needsApiKey ?? response.needs_api_key ?? false;
+        const aiError = response.aiError ?? response.ai_error ?? response.summarize_error ?? '';
+        const count = response.cardCount ?? response.card_count ?? response.cards?.length ?? 1;
+
         // 检查是否有待总结或总结失败状态
-        if (response.needsApiKey) {
+        if (needsApiKey) {
           ball.classList.remove('llm-kb-ball-spinning');
           ball.innerHTML = X_SVG;
           ball.style.background = GRAD_ERROR;
           showTooltip('对话已保存，但缺少 API Key，无法总结', 5000);
-        } else if (response.aiError) {
+        } else if (aiError) {
           ball.classList.remove('llm-kb-ball-spinning');
           ball.innerHTML = X_SVG;
           ball.style.background = GRAD_ERROR;
           showTooltip('对话已保存，但总结失败，请检查设置', 5000);
         } else {
-          const count = response.cards?.length || 1;
           ball.classList.remove('llm-kb-ball-spinning');
           ball.innerHTML = CHECK_SVG;
           ball.style.background = GRAD_SUCCESS;

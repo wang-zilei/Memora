@@ -3,7 +3,13 @@
 //   - 'http': Demo 模式，通过 fetch 调用 Express 后端
 //   - 'tauri': Tauri 模式，通过 invoke 调用 Rust commands
 
-const API_MODE = import.meta.env.VITE_API_MODE || 'http';
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+
+const isTauriRuntime =
+  typeof window !== 'undefined' &&
+  Boolean((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
+
+const API_MODE = import.meta.env.VITE_API_MODE || (isTauriRuntime ? 'tauri' : 'http');
 const API_BASE = '/api';
 
 // ============================================================
@@ -11,10 +17,19 @@ const API_BASE = '/api';
 // ============================================================
 
 async function invoke(command: string, args: Record<string, any>) {
-  // 动态导入 Tauri API，Vite 不应在编译时解析此模块
-  // 使用字符串拼接避免 Vite 的静态分析捕获
-  const tauriApiModule = await import(/* @vite-ignore */ '@tauri-apps/api/core');
-  return tauriApiModule.invoke(command, args);
+  return tauriInvoke(command, args);
+}
+
+function normalizeCardDetailResponse(data: any) {
+  if (!data?.card) return data;
+  return {
+    ...data,
+    card: {
+      ...data.card,
+      rawMessages: data.card.rawMessages ?? data.card.raw_messages ?? [],
+      cleanMessages: data.card.cleanMessages ?? data.card.clean_messages ?? [],
+    },
+  };
 }
 
 async function callAPI(path: string, options?: RequestInit) {
@@ -28,6 +43,11 @@ async function callAPI(path: string, options?: RequestInit) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    throw new Error(`服务返回了非 JSON 内容，请确认 Memora 后端已启动。响应开头：${text.slice(0, 80)}`);
+  }
   const data = await res.json();
   if (!data.success) throw new Error(data.error || '请求失败');
   return data;
@@ -37,6 +57,7 @@ async function callTauriCommand(path: string, options?: RequestInit) {
   // 解析路径和方法，路由到对应 Tauri command
   const method = options?.method || 'GET';
   const body = options?.body ? JSON.parse(options.body) : {};
+  const cardIdMatch = path.match(/^\/cards\/([^/?]+)/);
 
   // POST /api/capture → capture_conversation
   if (path === '/capture' && method === 'POST') {
@@ -44,24 +65,51 @@ async function callTauriCommand(path: string, options?: RequestInit) {
   }
 
   // GET /api/cards → get_cards
-  if (path.startsWith('/cards') && method === 'GET') {
+  if ((path === '/cards' || path.startsWith('/cards?')) && method === 'GET') {
     const params = new URLSearchParams(path.split('?')[1] || '');
     return invoke('get_cards', {
+      cardType: params.get('card_type') || undefined,
       keyword: params.get('keyword') || undefined,
+      tag: params.get('tag') || undefined,
+      starred: params.get('starred') ? params.get('starred') === 'true' : undefined,
       page: params.get('page') ? parseInt(params.get('page')!) : undefined,
-      page_size: params.get('pageSize') ? parseInt(params.get('pageSize')!) : undefined,
+      pageSize: params.get('pageSize') ? parseInt(params.get('pageSize')!) : undefined,
+    });
+  }
+
+  if (cardIdMatch && path.endsWith('/summarize') && method === 'POST') {
+    const settings = await invoke('get_settings', {}) as any;
+    const values = settings.settings || {};
+    if (!values._hasApiKey && !values.apiKey) {
+      throw new Error('请先在设置中配置 API Key');
+    }
+    return invoke('summarize_card', {
+      id: cardIdMatch[1],
+      apiKey: body.apiKey || values.apiKey || '',
+      apiUrl: body.apiUrl || values.apiUrl || 'https://api.openai.com/v1',
+      model: body.model || values.model || 'gpt-4.1-nano',
     });
   }
 
   // GET /api/cards/:id → get_card
-  const cardIdMatch = path.match(/^\/cards\/([^/?]+)/);
   if (cardIdMatch && method === 'GET') {
-    return invoke('get_card', { id: cardIdMatch[1] });
+    const data = await invoke('get_card', { id: cardIdMatch[1] });
+    return normalizeCardDetailResponse(data);
   }
 
   // PUT /api/cards/:id → update_card
   if (cardIdMatch && method === 'PUT') {
-    return invoke('update_card', { id: cardIdMatch[1], ...body });
+    const data = await invoke('update_card', {
+      id: cardIdMatch[1],
+      title: body.title,
+      cardType: body.card_type,
+      tags: body.tags,
+      starred: body.starred,
+      archived: body.archived,
+      narrative: body.narrative,
+      unresolvedQuestions: body.unresolved_questions,
+    });
+    return normalizeCardDetailResponse(data);
   }
 
   // DELETE /api/cards/:id → delete_card
@@ -82,6 +130,34 @@ async function callTauriCommand(path: string, options?: RequestInit) {
   // POST /api/settings/validate → validate_settings
   if (path === '/settings/validate' && method === 'POST') {
     return invoke('validate_settings', { settings: body });
+  }
+
+  if (path === '/status' && method === 'GET') {
+    const status = await invoke('get_status', {}) as any;
+    return {
+      ...status,
+      totalCards: status.totalCards ?? status.card_count ?? 0,
+      hasApiKey: status.hasApiKey ?? status.has_api_key ?? false,
+    };
+  }
+
+  if (path === '/tags' && method === 'GET') {
+    return invoke('get_tags', {});
+  }
+
+  if (path === '/statistics' && method === 'GET') {
+    const stats = await invoke('get_statistics', {}) as any;
+    return {
+      success: stats.success,
+      total: stats.total ?? stats.total_cards ?? 0,
+      byType: stats.byType ?? stats.by_type ?? {},
+      byPlatform: stats.byPlatform ?? stats.by_platform ?? {},
+      byTag: stats.byTag ?? stats.by_tag ?? {},
+    };
+  }
+
+  if (path === '/open-url' && method === 'POST') {
+    return invoke('open_url', { url: body.url });
   }
 
   throw new Error(`Unsupported API call: ${method} ${path}`);
@@ -167,4 +243,11 @@ export async function getStarredCards(params?: Record<string, string>) {
 // 统计数据
 export async function getStatistics() {
   return callAPI('/statistics');
+}
+
+export async function openSourceUrl(url: string) {
+  return callAPI('/open-url', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
 }

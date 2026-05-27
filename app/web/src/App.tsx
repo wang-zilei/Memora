@@ -7,10 +7,10 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Highlight from '@tiptap/extension-highlight'
 import './index.css'
-import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection } from './api'
+import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection, openSourceUrl } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
-import { LogoIcon, NavIcon } from './Logo'
+import { AppIcon, LogoIcon, NavIcon } from './Logo'
 import likeIcon from './assets/like.svg'
 import likedIcon from './assets/liked.svg'
 import trashIcon from './assets/delete.svg'
@@ -387,7 +387,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
       {/* 底部：设置按钮 */}
       <div className="sidebar-footer">
         <button className="settings-btn" onClick={onOpenSettings} title="设置">
-          <span className="material-symbols-rounded">settings</span>
+          <AppIcon name="settings" />
         </button>
       </div>
     </div>
@@ -526,7 +526,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
           title="刷新卡片列表"
           aria-label="刷新卡片列表"
         >
-          <span className="material-symbols-rounded">refresh</span>
+          <AppIcon name="refresh" />
           <span>刷新</span>
         </button>
       </div>
@@ -1095,7 +1095,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
       <div className="detail-hero">
         <div className="detail-title-group">
           <button className="icon-btn" onClick={onBack}>
-            <span className="material-symbols-rounded">arrow_back</span>
+            <AppIcon name="arrowBack" />
           </button>
           {editingTitle ? (
             <input
@@ -1115,13 +1115,13 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
         <div className="detail-actions">
           {!editingTitle && (
             <button className="icon-btn" onClick={handleStartEditTitle}>
-              <span className="material-symbols-rounded">edit</span>
+              <AppIcon name="edit" />
             </button>
           )}
           {!editingTitle && (
             <div className="dropdown-wrapper">
               <button className="icon-btn" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting} title="导出卡片">
-                <span className="material-symbols-rounded">download</span>
+                <AppIcon name="download" />
               </button>
               {showExportMenu && (
                 <>
@@ -1131,15 +1131,15 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                   />
                   <div className="dropdown-menu">
                     <button className="dropdown-item" onClick={() => handleExport('txt')}>
-                      <span className="material-symbols-rounded">description</span>
+                      <AppIcon name="description" />
                       导出为 TXT
                     </button>
                     <button className="dropdown-item" onClick={() => handleExport('pdf')}>
-                      <span className="material-symbols-rounded">picture_as_pdf</span>
+                      <AppIcon name="pdf" />
                       导出为 PDF
                     </button>
                     <button className="dropdown-item" onClick={() => handleExport('image')}>
-                      <span className="material-symbols-rounded">image</span>
+                      <AppIcon name="image" />
                       导出为图片
                     </button>
                   </div>
@@ -1155,7 +1155,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
           ) : (
             <div className="dropdown-wrapper">
               <button className="icon-btn" onClick={() => setShowDropdown(!showDropdown)}>
-                <span className="material-symbols-rounded">more_vert</span>
+                <AppIcon name="more" />
               </button>
               {showDropdown && (
                 <>
@@ -1249,7 +1249,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                     onClick={() => setShowTypeMenu(!showTypeMenu)}
                   >
                     {card.card_type}
-                    <span className="material-symbols-rounded card-type-arrow">arrow_drop_down</span>
+                    <AppIcon name="chevronDown" className="card-type-arrow" />
                   </button>
                 </div>
                 {showTypeMenu && CARD_TYPES.map(t => (
@@ -1288,17 +1288,13 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                 onClick={async () => {
                   const url = card.source!.url
                   try {
-                    await fetch('/api/open-url', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url }),
-                    })
+                    await openSourceUrl(url)
                   } catch {
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }
                 }}
               >
-                <span className="material-symbols-rounded">link</span>
+                <AppIcon name="link" />
                 回到原始对话
               </button>
             )}
@@ -1403,7 +1399,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
     <div className="settings-page">
       <div className="settings-header">
         <button className="icon-btn" onClick={onBack}>
-          <span className="material-symbols-rounded">arrow_back</span>
+          <AppIcon name="arrowBack" />
         </button>
         <h2>设置</h2>
       </div>
@@ -1451,7 +1447,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
             onClick={handleTestConnection}
             disabled={testing || saving}
           >
-            <span className="material-symbols-rounded">network_check</span>
+            <AppIcon name="network" />
             {testing ? '测试中...' : '测试连接'}
           </button>
           <button
@@ -1465,22 +1461,20 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
 
         {testResult && (
           <div className={`test-result ${testResult.success ? 'test-result--success' : 'test-result--error'}`}>
-            <span className="material-symbols-rounded">
-              {testResult.success ? 'check_circle' : 'error'}
-            </span>
+            <AppIcon name={testResult.success ? 'checkCircle' : 'error'} />
             <span>{testResult.detail}</span>
           </div>
         )}
 
         {message && !message.startsWith('保存失败') && (
           <div className="save-message save-message--success">
-            <span className="material-symbols-rounded">check_circle</span>
+            <AppIcon name="checkCircle" />
             <span>{message}</span>
           </div>
         )}
         {message && message.startsWith('保存失败') && (
           <div className="save-message save-message--error">
-            <span className="material-symbols-rounded">error</span>
+            <AppIcon name="error" />
             <span>{message}</span>
           </div>
         )}
@@ -1488,7 +1482,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
 
       <div className="quick-start-card">
         <div className="quick-start-title">
-          <span className="material-symbols-rounded">rocket_launch</span>
+          <AppIcon name="rocket" />
           快速开始
         </div>
         <ol className="quick-start-steps">

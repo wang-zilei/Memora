@@ -14,8 +14,10 @@ async function checkStatus() {
     const data = await res.json();
 
     if (data.success) {
+      const hasApiKey = data.hasApiKey ?? data.has_api_key ?? false;
+      const totalCards = data.totalCards ?? data.total_cards ?? data.card_count ?? 0;
       statusEl.className = 'status ok';
-      statusEl.innerHTML = `✅ Memora 客户端已连接 | API Key: ${data.hasApiKey ? '已配置' : '<b style="color:#c62828">未配置</b>'} | 卡片数: ${data.totalCards}`;
+      statusEl.innerHTML = `✅ Memora 客户端已连接 | API Key: ${hasApiKey ? '已配置' : '<b style="color:#c62828">未配置</b>'} | 卡片数: ${totalCards}`;
     } else {
       throw new Error(data.error);
     }

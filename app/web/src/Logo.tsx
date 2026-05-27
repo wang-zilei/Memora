@@ -128,30 +128,97 @@ export function LogoWordmark({ className }: { className?: string }) {
   );
 }
 
-// 导航项图标 — Google Material Symbols Rounded（字体图标）
+type IconName =
+  | 'home'
+  | 'star'
+  | 'barChart'
+  | 'lightbulb'
+  | 'search'
+  | 'school'
+  | 'list'
+  | 'editNote'
+  | 'sync'
+  | 'assignment'
+  | 'sparkles'
+  | 'forum'
+  | 'folder'
+  | 'settings'
+  | 'refresh'
+  | 'arrowBack'
+  | 'edit'
+  | 'download'
+  | 'description'
+  | 'pdf'
+  | 'image'
+  | 'more'
+  | 'chevronDown'
+  | 'link'
+  | 'network'
+  | 'checkCircle'
+  | 'error'
+  | 'rocket';
+
+const paths: Record<IconName, JSX.Element> = {
+  home: <><path d="M4 11.2 12 4l8 7.2" /><path d="M6.5 10.5V20h11v-9.5" /><path d="M10 20v-5h4v5" /></>,
+  star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.1L12 17.2 6.4 20.1 7.5 14 3 9.6l6.2-.9L12 3Z" />,
+  barChart: <><path d="M5 20V9" /><path d="M12 20V4" /><path d="M19 20v-7" /></>,
+  lightbulb: <><path d="M9 18h6" /><path d="M10 22h4" /><path d="M8 14.5a6 6 0 1 1 8 0c-1.1.8-1.5 1.8-1.6 3.5H9.6c-.1-1.7-.5-2.7-1.6-3.5Z" /></>,
+  search: <><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></>,
+  school: <><path d="m3 8 9-4 9 4-9 4-9-4Z" /><path d="M7 10.2v4.6c2.9 2 7.1 2 10 0v-4.6" /><path d="M21 8v6" /></>,
+  list: <><path d="M8 6h12" /><path d="M8 12h12" /><path d="M8 18h12" /><path d="M4 6h.01" /><path d="M4 12h.01" /><path d="M4 18h.01" /></>,
+  editNote: <><path d="M4 6h10" /><path d="M4 11h8" /><path d="M4 16h6" /><path d="m14 19 5-5 2 2-5 5h-2v-2Z" /></>,
+  sync: <><path d="M7 7h10l-2.5-2.5" /><path d="M17 17H7l2.5 2.5" /><path d="M17 7a6 6 0 0 1 1.4 6" /><path d="M7 17a6 6 0 0 1-1.4-6" /></>,
+  assignment: <><path d="M8 5h8" /><path d="M9 3h6v4H9z" /><path d="M6 5H5v16h14V5h-1" /><path d="M8 12h8" /><path d="M8 16h5" /></>,
+  sparkles: <><path d="M12 3 10.5 8.5 5 10l5.5 1.5L12 17l1.5-5.5L19 10l-5.5-1.5L12 3Z" /><path d="M5 16l-.7 2.3L2 19l2.3.7L5 22l.7-2.3L8 19l-2.3-.7L5 16Z" /></>,
+  forum: <><path d="M5 6h14v9H8l-3 3V6Z" /><path d="M9 10h6" /><path d="M9 13h4" /></>,
+  folder: <path d="M3.5 7.5h6l2 2h9v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10.5Z" />,
+  settings: <><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" /><path d="M4.9 9.8 3.7 7.7l2-2 2.1 1.2a7.8 7.8 0 0 1 2-.8L10.5 3h3l.7 3.1c.7.2 1.4.5 2 .8l2.1-1.2 2 2-1.2 2.1c.3.6.6 1.3.8 2l3.1.7v3l-3.1.7c-.2.7-.5 1.4-.8 2l1.2 2.1-2 2-2.1-1.2c-.6.3-1.3.6-2 .8l-.7 3.1h-3l-.7-3.1a7.8 7.8 0 0 1-2-.8l-2.1 1.2-2-2 1.2-2.1a7.8 7.8 0 0 1-.8-2L1 15.5v-3l3.1-.7c.2-.7.5-1.4.8-2Z" /></>,
+  refresh: <><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M19 12a7 7 0 0 0-12-4.9L4 10" /><path d="M5 12a7 7 0 0 0 12 4.9l3-2.9" /></>,
+  arrowBack: <><path d="M20 12H5" /><path d="m11 6-6 6 6 6" /></>,
+  edit: <><path d="M4 20h4l11-11-4-4L4 16v4Z" /><path d="m13.5 6.5 4 4" /></>,
+  download: <><path d="M12 3v11" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>,
+  description: <><path d="M6 3h8l4 4v14H6V3Z" /><path d="M14 3v5h4" /><path d="M9 13h6" /><path d="M9 17h6" /></>,
+  pdf: <><path d="M6 3h8l4 4v14H6V3Z" /><path d="M14 3v5h4" /><path d="M8 16h8" /><path d="M8 12h5" /></>,
+  image: <><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="m7 17 4-4 3 3 2-2 3 3" /></>,
+  more: <><circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" /></>,
+  chevronDown: <path d="m7 10 5 5 5-5" />,
+  link: <><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" /><path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" /></>,
+  network: <><rect x="3" y="4" width="7" height="6" rx="1.5" /><rect x="14" y="4" width="7" height="6" rx="1.5" /><rect x="8.5" y="15" width="7" height="6" rx="1.5" /><path d="M10 7h4" /><path d="M12 10v5" /></>,
+  checkCircle: <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
+  error: <><circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 17h.01" /></>,
+  rocket: <><path d="M13 4c3.5.3 5.7 2.5 6 6l-5.5 5.5-5-5L13 4Z" /><path d="m8.5 10.5-4 1L3 15l3.5-.5" /><path d="m13.5 15.5-.5 3.5 3.5-1.5 1-4" /><path d="M9 16l-2 2" /></>,
+};
+
+export function AppIcon({ name, className }: { name: IconName; className?: string }) {
+  return (
+    <svg className={className || 'app-icon'} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        {paths[name]}
+      </g>
+    </svg>
+  );
+}
+
+// 导航项图标 — 本地 SVG，避免打包版依赖外部字体。
 export function NavIcon({ name }: { name: string }) {
-  const iconMap: Record<string, string> = {
+  const iconMap: Record<string, IconName> = {
     '首页': 'home',
     '收藏': 'star',
-    '统计': 'bar_chart',
+    '统计': 'barChart',
     '概念理解': 'lightbulb',
     '事实查询': 'search',
     '技能学习': 'school',
-    '操作指南': 'list_alt',
-    '内容创作': 'edit_note',
-    '文本处理': 'sync_alt',
+    '操作指南': 'list',
+    '内容创作': 'editNote',
+    '文本处理': 'sync',
     '规划决策': 'assignment',
-    '头脑风暴': 'auto_awesome',
+    '头脑风暴': 'sparkles',
     '交互陪伴': 'forum',
-    '其他': 'folder_open',
+    '其他': 'folder',
   };
 
   const icon = iconMap[name];
   if (!icon) return null;
 
-  return (
-    <span className="material-symbols-rounded nav-item-icon" style={{ fontSize: 20, flexShrink: 0, opacity: 0.65 }}>
-      {icon}
-    </span>
-  );
+  return <AppIcon name={icon} className="nav-item-icon" />;
 }
