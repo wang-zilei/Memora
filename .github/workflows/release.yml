@@ -158,7 +158,7 @@ jobs:
           set -euo pipefail
           shopt -s globstar nullglob
           tag="${{ steps.release_tag.outputs.tag }}"
-          assets=(release-assets/**/Memora-*.zip)
+          assets=(release-assets/Memora-*.zip/Memora-*.zip)
           if [ ${#assets[@]} -ne 2 ]; then
             echo "Expected 2 release zips, found ${#assets[@]}." >&2
             printf '%s\n' "${assets[@]}"
