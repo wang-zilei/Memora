@@ -14,3 +14,13 @@
 
 MVP 优先做浏览器扩展。豆包端优先尝试“登录态内部接口分页读取”，同时保留 DOM/Shadow DOM 通用抽取作为兜底。
 
+## Release 下载结构
+
+正式发布时提供两个 GitHub Release zip：`Memora-windows.zip` 和 `Memora-mac.zip`。用户只下载自己系统对应的一个 zip，解压后包含两个主文件夹：
+
+```text
+plugin/
+client/
+```
+
+`plugin/` 是浏览器扩展目录，`client/` 是对应平台桌面客户端。详细约定见 `Guidance/RELEASE-DISTRIBUTION.md`。

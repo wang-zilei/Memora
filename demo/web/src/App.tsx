@@ -181,11 +181,13 @@ function App() {
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [totalCards, setTotalCards] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [refreshingCards, setRefreshingCards] = useState(false)
 
   // 加载卡片列表
-  const loadCards = async () => {
+  const loadCards = async (pageOverride: number = currentPage, options: { silent?: boolean } = {}) => {
+    if (!options.silent) setRefreshingCards(true)
     try {
-      const params: Record<string, string> = { page: String(currentPage), pageSize: String(CARD_LIST_PAGE_SIZE) }
+      const params: Record<string, string> = { page: String(pageOverride), pageSize: String(CARD_LIST_PAGE_SIZE) }
       if (currentCardType !== '全部') params.card_type = currentCardType
       if (currentTag) params.tag = currentTag
       if (searchKeyword) params.keyword = searchKeyword
@@ -194,16 +196,35 @@ function App() {
       setTotalCards(data.total)
     } catch (e) {
       console.error('Failed to load cards:', e)
+    } finally {
+      if (!options.silent) setRefreshingCards(false)
     }
   }
 
   useEffect(() => {
-    loadCards()
+    loadCards(currentPage, { silent: true })
   }, [currentCardType, currentTag, currentPage])
+
+  useEffect(() => {
+    if (page !== 'list') return
+    const timer = window.setInterval(() => {
+      if (!document.hidden) {
+        loadCards(currentPage, { silent: true })
+      }
+    }, 6000)
+    return () => window.clearInterval(timer)
+  }, [page, currentPage, currentCardType, currentTag, searchKeyword])
 
   const handleSearch = () => {
     setCurrentPage(1)
-    loadCards()
+    loadCards(1)
+  }
+
+  const handleRefreshCards = () => {
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
+    loadCards(1)
   }
 
   const handleCardClick = (id: string) => {
@@ -243,6 +264,8 @@ function App() {
             searchKeyword={searchKeyword}
             onSearchChange={setSearchKeyword}
             onSearch={handleSearch}
+            onRefresh={handleRefreshCards}
+            refreshing={refreshingCards}
             onPageChange={setCurrentPage}
             onCardClick={handleCardClick}
             currentCardType={currentCardType}
@@ -373,13 +396,15 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
 
 // ============ 卡片列表组件 ============
 
-function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onPageChange, onCardClick, currentCardType, currentTag, onTagClear }: {
+function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onCardClick, currentCardType, currentTag, onTagClear }: {
   cards: KnowledgeCardSummary[]
   totalCards: number
   currentPage: number
   searchKeyword: string
   onSearchChange: (kw: string) => void
   onSearch: () => void
+  onRefresh: () => void
+  refreshing: boolean
   onPageChange: (page: number) => void
   onCardClick: (id: string) => void
   currentCardType: string
@@ -490,6 +515,22 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
         </div>
       )}
 
+      <div className="list-toolbar">
+        <div className="list-meta">
+          {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
+        </div>
+        <button
+          className={`list-refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
+          onClick={onRefresh}
+          disabled={refreshing}
+          title="刷新卡片列表"
+          aria-label="刷新卡片列表"
+        >
+          <span className="material-symbols-rounded">refresh</span>
+          <span>刷新</span>
+        </button>
+      </div>
+
       {visibleCards.length === 0 ? (
         <div className="empty-state">
           <div className="icon">📭</div>
@@ -501,9 +542,6 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
         </div>
       ) : (
         <>
-          <div className="list-meta">
-            {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
-          </div>
           <div className="cards-grid">
             {visibleCards.map(card => (
               <div

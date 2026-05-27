@@ -415,13 +415,56 @@ select:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
   padding: 6px 10px;
   color: #755c37;
   background: rgba(255, 246, 220, 0.72);
   border: 1px dashed rgba(177, 135, 74, 0.35);
   border-radius: 8px;
   font-size: 12px;
+}
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.list-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 10px;
+  color: #6d5737;
+  background: rgba(255, 253, 247, 0.72);
+  border: 1px solid rgba(176, 142, 92, 0.34);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.list-refresh-btn:hover:not(:disabled) {
+  background: #fff8e6;
+  border-color: rgba(217, 95, 50, 0.3);
+  transform: translateY(-1px);
+}
+
+.list-refresh-btn:disabled {
+  opacity: 0.64;
+  cursor: wait;
+}
+
+.list-refresh-btn .material-symbols-rounded {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.list-refresh-btn.is-refreshing .material-symbols-rounded {
+  animation: refreshSpin 0.8s linear infinite;
 }
 
 .tag-filter-bar {
@@ -1800,6 +1843,12 @@ select:focus-visible,
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes refreshSpin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

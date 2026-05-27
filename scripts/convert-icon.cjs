@@ -8,7 +8,8 @@ const SRC = path.resolve(__dirname, '..', 'assets', 'logo.svg');
 const OUT = path.resolve(__dirname, '..', 'src-tauri', 'icons');
 
 const SOURCE_SVG = fs.readFileSync(SRC, 'utf8');
-const ICON_FILL_RATIO = 0.98;
+const ICON_FILL_RATIO = 0.93;
+const ICON_VIEWBOX = { x: 120, y: 105, size: 1360 };
 
 const sizes = [
   { name: '32x32.png', size: 32 },
@@ -49,29 +50,41 @@ async function main() {
 
 async function renderIconPng(size) {
   const contentSize = Math.round(size * ICON_FILL_RATIO);
-  const trimmed = await sharp(Buffer.from(SOURCE_SVG))
-    .resize(1024, 1024, { fit: 'contain' })
-    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 8 })
+  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+  const iconSvg = makeIconSvg();
+  const content = await sharp(Buffer.from(iconSvg))
     .resize(contentSize, contentSize, { fit: 'contain' })
     .png()
     .toBuffer();
 
-  const meta = await sharp(trimmed).metadata();
+  const meta = await sharp(content).metadata();
   const left = Math.floor((size - meta.width) / 2);
-  const right = size - meta.width - left;
   const top = Math.floor((size - meta.height) / 2);
-  const bottom = size - meta.height - top;
 
-  return sharp(trimmed)
-    .extend({
-      top,
-      bottom,
-      left,
-      right,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
+  return sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: transparent,
+    },
+  })
+    .composite([{ input: content, left, top }])
     .png()
     .toBuffer();
+}
+
+function makeIconSvg() {
+  const iconBody = SOURCE_SVG
+    .replace(/<\?xml[^?]*\?>\s*/g, '')
+    .replace(/<svg[^>]*>/, '')
+    .replace(/<\/svg>\s*$/, '')
+    .replace(/\sfilter="url\(#logoShadow\)"/g, '');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="${ICON_VIEWBOX.x} ${ICON_VIEWBOX.y} ${ICON_VIEWBOX.size} ${ICON_VIEWBOX.size}">
+  <rect x="${ICON_VIEWBOX.x}" y="${ICON_VIEWBOX.y}" width="${ICON_VIEWBOX.size}" height="${ICON_VIEWBOX.size}" fill="transparent"/>
+${iconBody}
+</svg>`;
 }
 
 function createIco(entries) {
