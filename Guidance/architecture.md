@@ -22,17 +22,15 @@ h:\llm-chat-knowledge-base\
 │   ├── architecture.md          # 本文件
 │   ├── pattern-library.md       # 可复用解决范式
 │   └── project-log.md           # 会话总结记录
-├── demo/                        # Demo 代码
-│   ├── server/                  # Express 后端（JSON 存储，兼容 OpenAI API）
-│   ├── web/                     # React + Vite + TypeScript 前端
-│   │   └── src/
-│   │       ├── api.ts           # API 适配层（HTTP/Tauri 双模式）
-│   │       ├── types.ts         # 类型定义（对齐 PRD-v2）
-│   │       ├── App.tsx          # 页面组件（列表/详情/收藏/统计/设置）
-│   │       ├── Logo.tsx         # Logo + 导航图标组件
-│   │       ├── index.css        # 全局样式
-│   │       └── assets/          # SVG 图标（like/liked/delete）
-│   └── extension/               # Chrome 扩展 MV3
+├── app/web/                     # React + Vite + TypeScript 正式客户端前端
+│   └── src/
+│       ├── api.ts               # API 适配层（HTTP/Tauri 双模式）
+│       ├── types.ts             # 类型定义（对齐 PRD-v2）
+│       ├── App.tsx              # 页面组件（列表/详情/收藏/统计/设置）
+│       ├── Logo.tsx             # Logo + 导航图标组件
+│       ├── index.css            # 全局样式
+│       └── assets/              # SVG 图标（like/liked/delete）
+├── extension/                   # 浏览器扩展 MV3
 ├── src-tauri/                   # Tauri 2.0 桌面应用
 │   ├── Cargo.toml
 │   ├── tauri.conf.json          # 窗口 1440×860，资源 prompts/**/*.md

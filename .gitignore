@@ -2,11 +2,12 @@
 # Dependencies
 # ========================
 node_modules/
+demo/
 
 # ========================
 # Build output
 # ========================
-demo/web/dist/
+app/web/dist/
 
 # ========================
 # Local data (user conversations)

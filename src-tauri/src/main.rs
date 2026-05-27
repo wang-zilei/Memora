@@ -357,7 +357,7 @@ impl JsonParse for String {
 }
 
 // ============================================================
-// Conversation Cleaning（对齐 Demo demo/server/capture.js）
+// Conversation Cleaning（对齐早期 demo/server/capture.js）
 // ============================================================
 
 /// 规范化角色标识：user/human/1 → "user"，其余 → "assistant"
@@ -2709,7 +2709,7 @@ fn frontend_dist_dir() -> Option<std::path::PathBuf> {
 
     let mut current = exe_dir;
     for _ in 0..10 {
-        let candidate = current.join("demo").join("web").join("dist");
+        let candidate = current.join("app").join("web").join("dist");
         if candidate.exists() {
             return Some(candidate);
         }

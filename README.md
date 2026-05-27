@@ -1,22 +1,31 @@
-# LLM Chat Knowledge Base
+# Memora
 
-本目录用于开发“LLM 对话自动沉淀知识库工具”。
+Memora（微忆）是一款浏览器插件 + 桌面客户端结合的 AI 知识沉淀工具。它可以抓取主流 LLM 网页版对话，在本地客户端中完成清洗、话题切分、意图路由和知识卡片生成。
 
-## 当前产物
+## Project Structure
 
-- `docs/product-requirements.md`：根据已有对话整理出的产品需求简报
-- `docs/chat-capture-research.md`：国内外主流 LLM 网页对话抓取方案调研
-- `chat-export/`：参考项目，ChatGPT / Claude / Gemini 导出扩展
-- `ctxport/`：参考项目，多平台对话复制/导出，包含豆包、DeepSeek、Gemini 等插件思路
-- `gemini-voyager/`：参考项目，Gemini 增强与导出扩展
+```text
+app/web/      # Tauri 客户端前端
+extension/    # 浏览器扩展
+src-tauri/    # Tauri/Rust 本地客户端与 HTTP API
+docs/         # 产品与技术文档
+Guidance/     # 协作记录、架构与发布约定
+assets/       # 品牌与通用图形资产
+scripts/      # 辅助脚本
+```
 
-## 推荐技术方向
+`demo/` 仅用于早期本地实验，不作为正式源码或 release 输入提交。
 
-MVP 优先做浏览器扩展。豆包端优先尝试“登录态内部接口分页读取”，同时保留 DOM/Shadow DOM 通用抽取作为兜底。
+## Release Packages
 
-## Release 下载结构
+正式发布时提供两个 GitHub Release zip：
 
-正式发布时提供两个 GitHub Release zip：`Memora-windows.zip` 和 `Memora-mac.zip`。用户只下载自己系统对应的一个 zip，解压后第一层直接包含两个主文件夹：
+```text
+Memora-windows.zip
+Memora-mac.zip
+```
+
+用户只下载自己系统对应的 zip，解压后第一层直接包含：
 
 ```text
 plugin/

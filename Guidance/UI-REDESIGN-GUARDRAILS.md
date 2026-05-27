@@ -123,7 +123,7 @@ App
 - `POST /api/open-url`
 - `GET /api/status`
 
-`demo/web/src/api.ts` 中的 HTTP / Tauri 双模式适配不属于本次 UI 重设计范围。
+`app/web/src/api.ts` 中的 HTTP / Tauri 双模式适配不属于本次 UI 重设计范围。
 
 ### 3. 不修改的状态管理和交互语义
 
@@ -169,19 +169,19 @@ App
 
 本轮 UI 视觉优化主要允许修改：
 
-- `demo/web/src/App.tsx`：仅限展示结构、className、品牌文字和非业务文案容器。
-- `demo/web/src/index.css`：视觉系统、布局、颜色、字体、间距、边框、阴影、状态样式。
+- `app/web/src/App.tsx`：仅限展示结构、className、品牌文字和非业务文案容器。
+- `app/web/src/index.css`：视觉系统、布局、颜色、字体、间距、边框、阴影、状态样式。
 - `Guidance/UI-REDESIGN-GUARDRAILS.md`：本护栏文档。
 - `Guidance/PROGRESS.md`：记录本次结构性文档和 UI 变更。
 
 除非另有明确需求，不修改：
 
-- `demo/web/src/api.ts`
-- `demo/web/src/types.ts`
+- `app/web/src/api.ts`
+- `app/web/src/types.ts`
 - `src-tauri/**`
 - `src-tauri/db/schema.sql`
 - `docs/prompts/**`
-- `demo/extension/**`
+- `extension/**`
 
 ### 2. 允许调整的视觉系统
 
