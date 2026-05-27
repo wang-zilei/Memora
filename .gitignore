@@ -1,0 +1,46 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+
+# ========================
+# Build output
+# ========================
+demo/web/dist/
+
+# ========================
+# Local data (user conversations)
+# ========================
+demo/data/
+
+# ========================
+# Tauri
+# ========================
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+
+# ========================
+# Claude Code
+# ========================
+.claude/
+.agents/
+skills-lock.json
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+*.exe
+*.msi
+
+# ========================
+# Reference projects (have their own .git)
+# ========================
+chat-export/
+ctxport/
+gemini-voyager/
+
+# Rust installer
+rustup-init.exe

@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600" role="img" aria-label="Abstract translucent folded icon">
+  <defs>
+    <linearGradient id="leftFoldFill" x1="376" y1="257" x2="1005" y2="1278" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ddd5ff" stop-opacity=".72"/>
+      <stop offset="42%" stop-color="#cbd8ff" stop-opacity=".6"/>
+      <stop offset="100%" stop-color="#c8d8ff" stop-opacity=".5"/>
+    </linearGradient>
+
+    <linearGradient id="rightFoldFill" x1="875" y1="283" x2="1174" y2="1389" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ded7ff" stop-opacity=".58"/>
+      <stop offset="48%" stop-color="#d8cbff" stop-opacity=".48"/>
+      <stop offset="100%" stop-color="#d579fb" stop-opacity=".68"/>
+    </linearGradient>
+
+    <linearGradient id="centerFill" x1="606" y1="535" x2="974" y2="1128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#77c8ff" stop-opacity=".9"/>
+      <stop offset="44%" stop-color="#405df6" stop-opacity=".92"/>
+      <stop offset="100%" stop-color="#ae56fa" stop-opacity=".88"/>
+    </linearGradient>
+
+    <radialGradient id="centerBloom" cx="34%" cy="39%" r="72%">
+      <stop offset="0%" stop-color="#8bddff" stop-opacity=".82"/>
+      <stop offset="40%" stop-color="#4c75ff" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#933cff" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="leftStroke" x1="370" y1="255" x2="986" y2="1298" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#718ee0" stop-opacity=".78"/>
+      <stop offset="54%" stop-color="#6899e7" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#8d80dc" stop-opacity=".66"/>
+    </linearGradient>
+
+    <linearGradient id="rightStroke" x1="832" y1="295" x2="1165" y2="1401" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8d88df" stop-opacity=".72"/>
+      <stop offset="46%" stop-color="#8998e2" stop-opacity=".46"/>
+      <stop offset="100%" stop-color="#9d55d9" stop-opacity=".78"/>
+    </linearGradient>
+
+    <linearGradient id="centerStroke" x1="609" y1="459" x2="984" y2="1235" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5f9ce6" stop-opacity=".72"/>
+      <stop offset="42%" stop-color="#5270ea" stop-opacity=".42"/>
+      <stop offset="100%" stop-color="#7d62dd" stop-opacity=".68"/>
+    </linearGradient>
+
+    <filter id="logoShadow" x="-18%" y="-16%" width="136%" height="132%">
+      <feDropShadow dx="-6" dy="12" stdDeviation="18" flood-color="#6781d8" flood-opacity=".13"/>
+      <feDropShadow dx="10" dy="16" stdDeviation="28" flood-color="#a45be6" flood-opacity=".12"/>
+    </filter>
+
+    <filter id="softEdge" x="-6%" y="-6%" width="112%" height="112%">
+      <feGaussianBlur stdDeviation=".35"/>
+    </filter>
+
+    <filter id="roundGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#e6dfcf" flood-opacity=".38"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#logoShadow)">
+    <path
+      d="M369 320
+         C369 224 467 171 553 213
+         L939 399
+         C978 418 1002 457 1002 501
+         L1002 1085
+         C1002 1140 967 1189 915 1207
+         L526 1337
+         C446 1364 369 1305 369 1220
+         Z"
+      fill="url(#leftFoldFill)"
+      stroke="url(#leftStroke)"
+      stroke-width="5.5"
+      stroke-linejoin="round"
+      filter="url(#softEdge)"/>
+
+    <path
+      d="M883 367
+         L1090 287
+         C1171 256 1254 316 1254 404
+         L1254 1271
+         C1254 1358 1168 1418 1086 1388
+         L724 1261
+         C674 1244 641 1197 641 1144
+         L641 531
+         C641 487 668 449 708 433
+         Z"
+      fill="url(#rightFoldFill)"
+      stroke="url(#rightStroke)"
+      stroke-width="5.5"
+      stroke-linejoin="round"
+      filter="url(#softEdge)"/>
+
+    <path
+      d="M708 433
+         L883 367
+         L935 392
+         C976 412 1002 454 1002 499
+         L1002 1082
+         C1002 1136 968 1184 917 1202
+         L724 1261
+         C674 1244 641 1197 641 1144
+         L641 531
+         C641 487 668 449 708 433
+         Z"
+      fill="url(#centerFill)"
+      stroke="url(#centerStroke)"
+      stroke-width="5.5"
+      stroke-linejoin="round"
+      filter="url(#softEdge)"/>
+
+    <path
+      d="M708 433
+         L883 367
+         L935 392
+         C976 412 1002 454 1002 499
+         L1002 1082
+         C1002 1136 968 1184 917 1202
+         L724 1261
+         C674 1244 641 1197 641 1144
+         L641 531
+         C641 487 668 449 708 433
+         Z"
+      fill="url(#centerBloom)"
+      opacity=".9"/>
+
+    <path
+      d="M641 531
+         C641 487 668 449 708 433
+         L883 367"
+      fill="none"
+      stroke="#74aef0"
+      stroke-width="6"
+      stroke-linecap="round"
+      opacity=".38"/>
+
+    <path
+      d="M369 320
+         C369 224 467 171 553 213
+         L883 367
+         L1090 287
+         C1171 256 1254 316 1254 404"
+      fill="none"
+      stroke="#8f8dde"
+      stroke-width="4"
+      stroke-linecap="round"
+      opacity=".26"/>
+
+    <circle cx="810" cy="825" r="52" fill="#fffdf7" filter="url(#roundGlow)"/>
+  </g>
+</svg>
