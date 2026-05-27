@@ -25,9 +25,6 @@ jobs:
           - platform: windows
             os: windows-latest
             zip_name: Memora-windows.zip
-          - platform: mac
-            os: macos-latest
-            zip_name: Memora-mac.zip
 
     steps:
       - name: Checkout
@@ -91,35 +88,6 @@ jobs:
 
           Compress-Archive -Path "$packageDir\plugin", "$packageDir\client" -DestinationPath "release\Memora-windows.zip" -Force
 
-      - name: Prepare macOS release zip
-        if: matrix.platform == 'mac'
-        shell: bash
-        run: |
-          set -euo pipefail
-          package_dir="release/Memora-mac"
-          mkdir -p "$package_dir/plugin" "$package_dir/client"
-
-          cp extension/manifest.json "$package_dir/plugin/"
-          cp extension/background.js "$package_dir/plugin/"
-          cp extension/content.js "$package_dir/plugin/"
-          cp extension/popup.html "$package_dir/plugin/"
-          cp extension/popup.js "$package_dir/plugin/"
-          cp -R extension/icons "$package_dir/plugin/"
-
-          shopt -s nullglob
-          client_files=(
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/macos/*.app
-            src-tauri/target/release/llm-knowledge-base
-          )
-          if [ ${#client_files[@]} -eq 0 ]; then
-            echo "No macOS client artifact found." >&2
-            exit 1
-          fi
-          cp -R "${client_files[@]}" "$package_dir/client/"
-
-          (cd "$package_dir" && zip -qry "../Memora-mac.zip" plugin client)
-
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
@@ -160,13 +128,13 @@ jobs:
           shopt -s globstar nullglob
           tag="${{ steps.release_tag.outputs.tag }}"
           assets=(release-assets/Memora-*.zip/Memora-*.zip)
-          if [ ${#assets[@]} -ne 2 ]; then
-            echo "Expected 2 release zips, found ${#assets[@]}." >&2
+          if [ ${#assets[@]} -ne 1 ]; then
+            echo "Expected 1 release zip, found ${#assets[@]}." >&2
             printf '%s\n' "${assets[@]}"
             exit 1
           fi
 
-          notes="Windows and macOS release packages. Each zip contains plugin/ and client/ folders."
+          notes="Windows release package. The zip contains plugin/ and client/ folders. macOS packaging is temporarily skipped."
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "${assets[@]}" --clobber
           else

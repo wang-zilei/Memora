@@ -18,18 +18,17 @@ scripts/      # 辅助脚本
 
 ## Release Packages
 
-正式发布时提供两个 GitHub Release zip：
+当前正式发布先提供 Windows GitHub Release zip：
 
 ```text
 Memora-windows.zip
-Memora-mac.zip
 ```
 
-用户只下载自己系统对应的 zip，解压后第一层直接包含：
+用户下载 zip，解压后第一层直接包含：
 
 ```text
 plugin/
 client/
 ```
 
-`plugin/` 是浏览器扩展目录，`client/` 是对应平台桌面客户端。详细约定见 `Guidance/RELEASE-DISTRIBUTION.md`。
+`plugin/` 是浏览器扩展目录，`client/` 是 Windows 桌面客户端。macOS 包暂时跳过，详细约定见 `Guidance/RELEASE-DISTRIBUTION.md`。

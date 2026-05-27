@@ -1,6 +1,6 @@
 [package]
 name = "llm-knowledge-base"
-version = "0.1.6"
+version = "0.1.7"
 description = "LLM 对话自动沉淀知识库工具"
 authors = []
 edition = "2021"
