@@ -10,12 +10,14 @@ import './index.css'
 import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
-import { LogoIcon, LogoWordmark, NavIcon } from './Logo'
+import { LogoIcon, NavIcon } from './Logo'
 import likeIcon from './assets/like.svg'
 import likedIcon from './assets/liked.svg'
 import trashIcon from './assets/delete.svg'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
+
+const CARD_LIST_PAGE_SIZE = 12
 
 /** 质检清洗：移除 markdown 格式标识和转义字符（前端兜底） */
 function sanitizeContent(text: string): string {
@@ -90,10 +92,18 @@ function TipTapEditor({ content, onSave, placeholder }: {
   return (
     <div className="tiptap-wrapper">
       <div className="tiptap-toolbar">
-        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} title="加粗">B</button>
-        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''} title="斜体">I</button>
-        <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={editor.isActive('underline') ? 'is-active' : ''} title="下划线">U</button>
-        <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''} title="高亮">H</button>
+        <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} title="加粗" aria-label="加粗">
+          <span className="format-icon format-icon--bold" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''} title="斜体" aria-label="斜体">
+          <span className="format-icon format-icon--italic" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={editor.isActive('underline') ? 'is-active' : ''} title="下划线" aria-label="下划线">
+          <span className="format-icon format-icon--underline" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''} title="高亮" aria-label="高亮">
+          <span className="format-icon format-icon--highlight" aria-hidden="true" />
+        </button>
       </div>
       <EditorContent editor={editor} />
     </div>
@@ -175,7 +185,7 @@ function App() {
   // 加载卡片列表
   const loadCards = async () => {
     try {
-      const params: Record<string, string> = { page: String(currentPage), pageSize: '20' }
+      const params: Record<string, string> = { page: String(currentPage), pageSize: String(CARD_LIST_PAGE_SIZE) }
       if (currentCardType !== '全部') params.card_type = currentCardType
       if (currentTag) params.tag = currentTag
       if (searchKeyword) params.keyword = searchKeyword
@@ -287,7 +297,10 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
       {/* Logo 区域 */}
       <div className="sidebar-logo">
         <LogoIcon className="logo-icon" />
-        <LogoWordmark className="logo-wordmark" />
+        <div className="brand-copy">
+          <div className="brand-name">Memora</div>
+          <div className="brand-tagline">微忆，让知识在对话里生长</div>
+        </div>
       </div>
 
       {/* 导航区域 */}
@@ -332,7 +345,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
         <div className="nav-section-label">全部标签</div>
         <div className="tags-cloud">
           {tags.length === 0 ? (
-            <span style={{ fontSize: 12, color: 'var(--sidebar-text-muted)' }}>暂无标签</span>
+            <span className="tags-empty">暂无标签</span>
           ) : (
             tags.map(t => (
               <span
@@ -340,7 +353,6 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
                 className={`tag-chip ${currentTag === t.tag ? 'tag-chip--active' : ''}`}
                 title={`${t.tag} (${t.count})`}
                 onClick={() => { onNavigate('list'); onCardTypeChange('全部'); onTagChange(currentTag === t.tag ? '' : t.tag); }}
-                style={{ cursor: 'pointer' }}
               >
                 {t.tag}
               </span>
@@ -374,7 +386,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   currentTag: string
   onTagClear: () => void
 }) {
-  const totalPages = Math.ceil(totalCards / 20)
+  const totalPages = Math.ceil(totalCards / CARD_LIST_PAGE_SIZE)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   // 本地覆盖状态：避免触发 App 重渲染导致 CardList 被销毁 remount
@@ -458,7 +470,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   }
 
   return (
-    <div>
+    <div className="page-shell list-page">
       <div className="search-bar">
         <input
           type="text"
@@ -489,7 +501,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 13, color: '#999', marginBottom: 12 }}>
+          <div className="list-meta">
             {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
           </div>
           <div className="cards-grid">
@@ -545,7 +557,6 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                   <span className="tag tag--type" style={{
                     background: INTENT_COLORS[card.card_type] || '#e8e8e8',
                     color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
-                    fontWeight: 600,
                   }}>
                     {card.card_type}
                   </span>
@@ -568,7 +579,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                 disabled={currentPage <= 1}
                 onClick={() => onPageChange(currentPage - 1)}
               >上一页</button>
-              <span style={{ padding: '8px 12px', fontSize: 13 }}>
+              <span className="pagination-current">
                 {currentPage} / {totalPages}
               </span>
               <button
@@ -743,7 +754,6 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
                 <span className="tag tag--type" style={{
                   background: INTENT_COLORS[card.card_type] || '#e8e8e8',
                   color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
-                  fontWeight: 600,
                 }}>
                   {card.card_type}
                 </span>
@@ -845,7 +855,7 @@ function StatisticsPage() {
             .map(([tag, count], i) => (
               <div className="stat-row" key={tag}>
                 <span>
-                  <span style={{ color: '#999', marginRight: 8, fontSize: 12 }}>#{i + 1}</span>
+                  <span className="stat-rank">#{i + 1}</span>
                   {tag}
                 </span>
                 <span className="stat-row-value">{count}</span>
@@ -1044,8 +1054,8 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
   return (
     <div className="card-detail">
       {/* Header: back icon + title + actions */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+      <div className="detail-hero">
+        <div className="detail-title-group">
           <button className="icon-btn" onClick={onBack}>
             <span className="material-symbols-rounded">arrow_back</span>
           </button>
@@ -1064,7 +1074,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
             <div className="detail-title">{card.title}</div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        <div className="detail-actions">
           {!editingTitle && (
             <button className="icon-btn" onClick={handleStartEditTitle}>
               <span className="material-symbols-rounded">edit</span>
@@ -1078,7 +1088,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
               {showExportMenu && (
                 <>
                   <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    className="menu-scrim"
                     onClick={() => setShowExportMenu(false)}
                   />
                   <div className="dropdown-menu">
@@ -1112,7 +1122,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
               {showDropdown && (
                 <>
                   <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                    className="menu-scrim"
                     onClick={() => setShowDropdown(false)}
                   />
                   <div className="dropdown-menu">
@@ -1134,21 +1144,12 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
 
       {/* 总结失败提示 */}
       {card.summarize_error && (
-        <div style={{
-          padding: '12px 16px',
-          background: '#fff3e0',
-          border: '1px solid #ffcc80',
-          borderRadius: 8,
-          marginBottom: 16,
-          fontSize: 13,
-          color: '#e65100',
-        }}>
+        <div className="summary-error-panel">
           ⚠️ AI 总结失败：{card.summarize_error}
           <br />
           请检查设置中的 API Key 是否正确、额度是否充足，然后点击「重新总结」重试。
           <button
             className="back-btn"
-            style={{ marginLeft: 8 }}
             onClick={handleResummarize}
             disabled={summarizing}
           >
@@ -1157,7 +1158,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
         </div>
       )}
 
-      <div className="detail-card" style={{ padding: 24 }}>
+      <div className="detail-card">
         {/* Tab 栏 */}
         <div className="detail-tabs">
           <button
@@ -1176,68 +1177,18 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
 
         {activeTab === 'overview' && (
           <>
-            {/* 卡片类型（可切换） */}
-            <div className="detail-section" style={{ marginBottom: 20 }}>
-              <div className="dropdown-wrapper" style={{ display: 'inline-block' }}>
-                <button
-                  className="card-type-badge card-type-badge--editable"
-                  style={{
-                    background: INTENT_COLORS[card.card_type] || '#e8e8e8',
-                    color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '4px 10px',
-                    borderRadius: 4,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    lineHeight: '20px',
-                  }}
-                  onClick={() => setShowTypeMenu(!showTypeMenu)}
-                >
-                  {card.card_type}
-                  <span className="material-symbols-rounded" style={{ fontSize: 14, marginLeft: 4, verticalAlign: 'middle' }}>arrow_drop_down</span>
-                </button>
-                {showTypeMenu && (
-                  <>
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowTypeMenu(false)} />
-                    <div className="dropdown-menu" style={{ minWidth: 140 }}>
-                      {CARD_TYPES.map(t => (
-                        <button
-                          key={t}
-                          className={`dropdown-item ${t === card.card_type ? 'dropdown-item--active' : ''}`}
-                          style={{
-                            background: t === card.card_type ? '#f0f0f0' : undefined,
-                            fontWeight: t === card.card_type ? 600 : undefined,
-                          }}
-                          onClick={() => handleChangeCardType(t)}
-                        >
-                          <span style={{
-                            display: 'inline-block',
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            background: INTENT_COLORS[t] || '#e8e8e8',
-                            marginRight: 8,
-                          }} />
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
             {/* 核心问题 */}
             {card.original_question && (
-              <div className="detail-section">
+              <div className="detail-section detail-section--question">
                 <div className="section-title">核心问题</div>
-                <div className="section-text">{sanitizeContent(card.original_question)}</div>
+                <div className="question-box">
+                  <div className="section-text">{sanitizeContent(card.original_question)}</div>
+                </div>
               </div>
             )}
 
             {/* 卡片叙事（可编辑） */}
-            <div className="detail-section">
+            <div className="detail-section detail-section--conclusion">
               <div className="section-title">关键结论</div>
               <TipTapEditor
                 content={card.narrative || ''}
@@ -1246,35 +1197,45 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
               />
             </div>
 
-            {/* 待解决问题（可编辑） */}
-            <div className="detail-section">
-              <div className="section-title">待解决问题</div>
-              <TipTapEditor
-                content={(card.unresolved_questions || []).filter(Boolean).map(q => `<p>${q}</p>`).join('')}
-                onSave={(html) => {
-                  const questions = extractParagraphs(html)
-                  updateCard(cardId, { unresolved_questions: questions }).catch(e => console.error('保存 unresolved_questions 失败:', e))
-                }}
-                placeholder="输入待解决问题，每段一个..."
-              />
-            </div>
-
             <hr className="overview-divider" />
 
-            {/* 标签 */}
-            {card.tags?.length > 0 && (
-              <div className="detail-section">
-                <div className="detail-tags">
-                  {card.tags.map((tag, i) => (
-                    <span key={i} className="detail-tag">{tag}</span>
-                  ))}
+            <div className="detail-section detail-meta-strip">
+              <div className="detail-tags">
+                <div className="dropdown-wrapper card-type-wrapper">
+                  <button
+                    className="card-type-badge card-type-badge--editable"
+                    style={{
+                      background: INTENT_COLORS[card.card_type] || '#e8e8e8',
+                      color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
+                    }}
+                    onClick={() => setShowTypeMenu(!showTypeMenu)}
+                  >
+                    {card.card_type}
+                    <span className="material-symbols-rounded card-type-arrow">arrow_drop_down</span>
+                  </button>
                 </div>
+                {showTypeMenu && CARD_TYPES.map(t => (
+                  <button
+                    key={t}
+                    className={`intent-option-chip ${t === card.card_type ? 'intent-option-chip--active' : ''}`}
+                    onClick={() => handleChangeCardType(t)}
+                    style={{
+                      background: INTENT_COLORS[t] || '#e8e8e8',
+                      color: INTENT_TEXT_COLORS[t] || '#4b5563',
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+                {(card.tags || []).map((tag, i) => (
+                  <span key={i} className="detail-tag">{tag}</span>
+                ))}
               </div>
-            )}
+            </div>
 
             {/* 来源行 */}
-            <div className="detail-section" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#666' }}>
-              <span style={{ fontFamily: "'Times New Roman', Times, serif", fontStyle: 'italic' }}>
+            <div className="detail-section source-row">
+              <span className="source-platform">
                 {platformName}
               </span>
               {card.source?.captured_at && (
@@ -1308,19 +1269,13 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
 
         {activeTab === 'conversation' && (
           <div className="messages-section">
-            <div style={{ marginBottom: 12 }}>
-              <div className="section-label" style={{ margin: 0 }}>对话记录</div>
+            <div className="messages-header">
+              <div className="section-label">对话记录</div>
             </div>
             {(card.cleanMessages || []).map((msg, i) => (
-              <div key={i} className={`message-pair ${msg.role === 'user' ? 'msg-user' : 'msg-assistant'}`} style={{
-                marginBottom: 8,
-                padding: '8px 12px',
-                borderRadius: 6,
-                background: msg.role === 'user' ? '#f8f9ff' : '#fafafa',
-                borderLeft: msg.role === 'user' ? '3px solid #667eea' : '3px solid #43a047',
-              }}>
+              <div key={i} className={`message-pair ${msg.role === 'user' ? 'msg-user' : 'msg-assistant'}`}>
                 <div className="msg-label">{msg.role === 'user' ? '用户' : platformName}</div>
-                <div style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{sanitizeContent(msg.content)}</div>
+                <div className="message-content">{sanitizeContent(msg.content)}</div>
               </div>
             ))}
           </div>
@@ -1510,14 +1465,14 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
             <span className="step-number">2</span>
             <div className="step-content">
               <strong>安装浏览器扩展</strong>
-              <span>打开 Chrome，进入 chrome://extensions → 开启「开发者模式」→ 点击「加载已解压的扩展程序」→ 选择本项目的 extension 文件夹</span>
+              <span>打开支持扩展的浏览器，进入扩展管理页面 → 开启「开发者模式」→ 点击「加载已解压的扩展程序」→ 选择本项目的 extension 文件夹。当前支持：豆包、元宝、DeepSeek、Kimi、Qwen、ChatGPT、Gemini</span>
             </div>
           </li>
           <li>
             <span className="step-number">3</span>
             <div className="step-content">
               <strong>打开 LLM 对话页面</strong>
-              <span>在浏览器中打开任意 LLM 网页版（如 ChatGPT、Claude、DeepSeek 等），点击页面右侧的悬浮球即可自动抓取当前对话</span>
+              <span>在浏览器中打开任意 LLM 网页版（如 ChatGPT、DeepSeek、豆包等），点击页面右侧的悬浮球即可自动抓取当前对话</span>
             </div>
           </li>
           <li>
