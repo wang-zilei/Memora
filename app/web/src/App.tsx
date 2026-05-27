@@ -10,10 +10,7 @@ import './index.css'
 import { getCards, getCard, deleteCard, getSettings, updateSettings, summarizeCard, getTags, getStarredCards, getStatistics, updateCard, testSettingsConnection, openSourceUrl } from './api'
 import type { KnowledgeCardSummary, KnowledgeCardDetail, Settings, CardListResponse, TagInfo, Statistics as StatisticsType } from './types'
 import { PLATFORM_NAMES, PLATFORM_COLORS } from './types'
-import { AppIcon, LogoIcon, NavIcon } from './Logo'
-import likeIcon from './assets/like.svg'
-import likedIcon from './assets/liked.svg'
-import trashIcon from './assets/delete.svg'
+import { AppIcon, AssetIcon, LogoIcon, NavIcon } from './Logo'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
 
@@ -161,7 +158,7 @@ function ConfirmModal({ message, onConfirm, onCancel }: {
   return (
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-modal" onClick={e => e.stopPropagation()}>
-        <img src={trashIcon} className="confirm-icon" alt="" />
+        <AssetIcon name="delete" className="confirm-icon" />
         <p className="confirm-message">{message}</p>
         <div className="confirm-actions">
           <button className="confirm-btn confirm-btn--cancel" onClick={onCancel}>取消</button>
@@ -571,11 +568,11 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                           className={`card-menu-item ${getStarred(card) ? 'card-menu-item--starred' : ''}`}
                           onClick={(e) => handleToggleStar(card.id, e)}
                         >
-                          <img src={getStarred(card) ? likedIcon : likeIcon} className="menu-icon" alt="" />
+                          <AssetIcon name={getStarred(card) ? 'liked' : 'like'} className="menu-icon" />
                           {getStarred(card) ? '已收藏' : '收藏'}
                         </button>
                         <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
-                          <img src={trashIcon} className="menu-icon" alt="" />
+                          <AssetIcon name="delete" className="menu-icon" />
                           删除
                         </button>
                       </div>
@@ -770,11 +767,11 @@ function FavoritesList({ onCardClick }: { onCardClick: (id: string) => void }) {
                         className="card-menu-item card-menu-item--starred"
                         onClick={(e) => handleToggleStar(card.id, e)}
                       >
-                        <img src={likedIcon} className="menu-icon" alt="" />
+                        <AssetIcon name="liked" className="menu-icon" />
                         已收藏
                       </button>
                       <button className="card-menu-item card-menu-item--danger" onClick={(e) => handleDelete(card.id, e)}>
-                        <img src={trashIcon} className="menu-icon" alt="" />
+                        <AssetIcon name="delete" className="menu-icon" />
                         删除
                       </button>
                     </div>
@@ -1165,11 +1162,11 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                   />
                   <div className="dropdown-menu">
                     <button className={`dropdown-item ${card.starred ? 'dropdown-item--starred' : ''}`} onClick={handleToggleFavorite}>
-                      <img src={card.starred ? likedIcon : likeIcon} className="dropdown-icon" alt="" />
+                      <AssetIcon name={card.starred ? 'liked' : 'like'} className="dropdown-icon" />
                       {card.starred ? '取消收藏' : '收藏'}
                     </button>
                     <button className="dropdown-item danger" onClick={() => { setShowDropdown(false); handleDelete(); }}>
-                      <img src={trashIcon} className="dropdown-icon" alt="" />
+                      <AssetIcon name="delete" className="dropdown-icon" />
                       删除
                     </button>
                   </div>
@@ -1379,7 +1376,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
     setMessage('')
     try {
       const data = await testSettingsConnection({
-        apiKey: apiKey || undefined,
+        apiKey: apiKey || (settings._hasApiKey ? '__USE_SAVED_API_KEY__' : undefined),
         apiUrl: apiUrl || undefined,
         model: model || undefined,
       })

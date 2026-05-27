@@ -1171,10 +1171,22 @@ async fn update_settings(
 
 #[tauri::command]
 async fn validate_settings(
-    _app: AppHandle,
+    app: AppHandle,
     settings: std::collections::HashMap<String, String>,
 ) -> Result<serde_json::Value, String> {
-    let api_key = settings.get("apiKey").ok_or("API Key 不能为空")?;
+    let state = app.state::<AppState>();
+    let api_key_input = settings.get("apiKey").map(|s| s.trim()).unwrap_or("");
+    let api_key = if api_key_input.is_empty() || api_key_input == "__USE_SAVED_API_KEY__" {
+        sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
+        )
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("API Key 不能为空")?
+    } else {
+        api_key_input.to_string()
+    };
     let api_url = settings.get("apiUrl").cloned().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
     let model = settings.get("model").cloned().unwrap_or_else(|| "gpt-3.5-turbo".to_string());
 
@@ -1858,10 +1870,24 @@ async fn http_update_settings(
 }
 
 async fn http_validate_settings(
-    State(_pool): State<SharedPool>,
+    State(pool): State<SharedPool>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let api_key = body["apiKey"].as_str().unwrap_or("");
+    let api_key_input = body["apiKey"].as_str().unwrap_or("").trim();
+    let api_key = if api_key_input.is_empty() || api_key_input == "__USE_SAVED_API_KEY__" {
+        sqlx::query_scalar::<_, String>(
+            "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
+        )
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "error": e.to_string() }))))?
+        .unwrap_or_default()
+    } else {
+        api_key_input.to_string()
+    };
+    if api_key.is_empty() {
+        return Ok(Json(json!({ "success": false, "error": "API Key 不能为空" })));
+    }
     let api_url = body["apiUrl"].as_str().unwrap_or("https://api.openai.com/v1");
     let model = body["model"].as_str().unwrap_or("gpt-4.1-nano");
 
@@ -2300,6 +2326,61 @@ fn intent_by_key(key: &str) -> IntentInfo {
     IntentInfo { zh: "其他", dir: "other" }
 }
 
+fn embedded_prompt(prompt_dir: &str) -> Option<&'static str> {
+    match prompt_dir {
+        "brainstorm" => Some(include_str!("../prompts/brainstorm/prompt.md")),
+        "classifier" => Some(include_str!("../prompts/classifier/prompt.md")),
+        "concept-exploration" => Some(include_str!("../prompts/concept-exploration/prompt.md")),
+        "content-creation" => Some(include_str!("../prompts/content-creation/prompt.md")),
+        "fact-query" => Some(include_str!("../prompts/fact-query/prompt.md")),
+        "how-to" => Some(include_str!("../prompts/how-to/prompt.md")),
+        "interactive-companion" => Some(include_str!("../prompts/interactive-companion/prompt.md")),
+        "other" => Some(include_str!("../prompts/other/prompt.md")),
+        "planning-decision" => Some(include_str!("../prompts/planning-decision/prompt.md")),
+        "skill-learning" => Some(include_str!("../prompts/skill-learning/prompt.md")),
+        "text-processing" => Some(include_str!("../prompts/text-processing/prompt.md")),
+        "topic-split" => Some(include_str!("../prompts/topic-split/prompt.md")),
+        _ => None,
+    }
+}
+
+fn read_prompt(prompt_dir: &str, label: &str) -> Result<String, String> {
+    let prompt_path = prompts_dir().join(prompt_dir).join("prompt.md");
+    match std::fs::read_to_string(&prompt_path) {
+        Ok(prompt) => Ok(prompt),
+        Err(e) => {
+            if let Some(prompt) = embedded_prompt(prompt_dir) {
+                tracing::warn!(
+                    "Prompt file not found at {}, using embedded fallback: {}",
+                    prompt_path.display(),
+                    e
+                );
+                Ok(prompt.to_string())
+            } else {
+                Err(format!("读取 {} prompt 失败: {}", label, e))
+            }
+        }
+    }
+}
+
+fn fallback_original_question(messages: &[Message]) -> String {
+    let mut question = messages
+        .iter()
+        .find(|m| m.role == "user" && !m.content.trim().is_empty())
+        .map(|m| sanitize_content(&m.content))
+        .unwrap_or_default();
+
+    if question.is_empty() {
+        return "未识别到用户问题".to_string();
+    }
+
+    const MAX_CHARS: usize = 220;
+    if question.chars().count() > MAX_CHARS {
+        question = format!("{}…", question.chars().take(MAX_CHARS).collect::<String>());
+    }
+    question
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct TopicBlock {
@@ -2335,9 +2416,7 @@ async fn split_topics(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let prompt_path = prompts_dir().join("topic-split").join("prompt.md");
-    let prompt_raw = std::fs::read_to_string(&prompt_path)
-        .map_err(|e| format!("读取话题切分 prompt 失败: {}", e))?;
+    let prompt_raw = read_prompt("topic-split", "话题切分")?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let final_prompt = if system_prompt.contains("{{conversation}}") {
@@ -2483,9 +2562,7 @@ async fn classify_intent(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let prompt_path = prompts_dir().join("classifier").join("prompt.md");
-    let prompt_raw = std::fs::read_to_string(&prompt_path)
-        .map_err(|e| format!("读取意图分类 prompt 失败: {}", e))?;
+    let prompt_raw = read_prompt("classifier", "意图分类")?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let response = call_openai_compat(api_key, api_url, model, &system_prompt,
@@ -2520,9 +2597,7 @@ async fn generate_card(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let prompt_path = prompts_dir().join(intent_dir).join("prompt.md");
-    let prompt_raw = std::fs::read_to_string(&prompt_path)
-        .map_err(|e| format!("读取 {} prompt 失败: {}", intent_dir, e))?;
+    let prompt_raw = read_prompt(intent_dir, intent_dir)?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let final_prompt = system_prompt.replace("{{conversation}}", &conversation_text);
@@ -2566,6 +2641,9 @@ async fn generate_card(
 
     if card.narrative.is_empty() && card.full_output.is_some() {
         card.narrative = card.full_output.as_ref().unwrap().clone();
+    }
+    if card.original_question.trim().is_empty() {
+        card.original_question = fallback_original_question(block_messages);
     }
 
     Ok(card)
@@ -2715,7 +2793,7 @@ async fn run_ai_pipeline(
                 cards.push(PipelineCardResult {
                     title: if block.topic_hint.is_empty() { "对话片段".to_string() } else { block.topic_hint.clone() },
                     card_type: "其他".to_string(),
-                    original_question: String::new(),
+                    original_question: fallback_original_question(block_messages),
                     narrative: format!("AI 卡片生成失败: {}。以下是原始对话记录：\n\n{}", e, raw_preview),
                     tags: vec![platform.to_string()],
                     full_output: None,
