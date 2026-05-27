@@ -9,9 +9,10 @@
     "scripting"
   ],
   "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
-    "https://claude.ai/*",
     "https://chat.deepseek.com/*",
     "https://www.doubao.com/*",
     "https://doubao.com/*",
@@ -19,8 +20,6 @@
     "https://kimi.moonshot.cn/*",
     "https://kimi.com/*",
     "https://www.kimi.com/*",
-    "https://chat.minimax.io/*",
-    "https://hailuoai.com/*",
     "https://chat.qwen.ai/*",
     "https://tongyi.aliyun.com/*",
     "https://www.qianwen.com/*",
@@ -37,7 +36,6 @@
       "matches": [
         "https://chatgpt.com/*",
         "https://chat.openai.com/*",
-        "https://claude.ai/*",
         "https://chat.deepseek.com/*",
         "https://www.doubao.com/*",
         "https://doubao.com/*",
@@ -45,8 +43,6 @@
         "https://kimi.moonshot.cn/*",
         "https://kimi.com/*",
         "https://www.kimi.com/*",
-        "https://chat.minimax.io/*",
-        "https://hailuoai.com/*",
         "https://chat.qwen.ai/*",
         "https://tongyi.aliyun.com/*",
         "https://www.qianwen.com/*",

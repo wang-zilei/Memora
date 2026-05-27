@@ -1,6 +1,6 @@
 /**
  * Background Service Worker
- * 接收 content script 的抓取结果，发送到后端
+ * 接收 content script 的抓取结果，发送到 Memora 客户端
  */
 
 const SERVER_URL = 'http://localhost:17321';
@@ -31,11 +31,11 @@ async function handleCaptureSubmit(data) {
   });
 
   if (!response.ok) {
-    throw new Error(`后端返回错误: ${response.status}`);
+    throw new Error(`Memora 客户端返回错误: ${response.status}`);
   }
 
   const result = await response.json();
-  console.log('[Background] 后端处理结果:', result.message);
+  console.log('[Background] Memora 客户端处理结果:', result.message);
   return result;
 }
 
@@ -44,6 +44,6 @@ async function checkServerStatus() {
     const response = await fetch(`${SERVER_URL}/api/status`, { method: 'GET' });
     return await response.json();
   } catch (error) {
-    return { success: false, error: '无法连接到后端服务，请确保后端已启动' };
+    return { success: false, error: '无法连接到 Memora 客户端，请确保桌面客户端已启动' };
   }
 }

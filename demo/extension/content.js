@@ -27,12 +27,10 @@
 
   const PLATFORMS = {
     chatgpt: { id: 'chatgpt', name: 'ChatGPT', hosts: ['chatgpt.com', 'chat.openai.com'] },
-    claude: { id: 'claude', name: 'Claude', hosts: ['claude.ai'] },
     deepseek: { id: 'deepseek', name: 'DeepSeek', hosts: ['chat.deepseek.com'] },
     doubao: { id: 'doubao', name: '豆包', hosts: ['www.doubao.com', 'doubao.com'] },
     gemini: { id: 'gemini', name: 'Gemini', hosts: ['gemini.google.com'] },
     kimi: { id: 'kimi', name: 'Kimi', hosts: ['kimi.moonshot.cn', 'kimi.com', 'www.kimi.com'] },
-    minimax: { id: 'minimax', name: 'MiniMax', hosts: ['chat.minimax.io', 'hailuoai.com'] },
     qwen: { id: 'qwen', name: '通义千问', hosts: ['chat.qwen.ai', 'tongyi.aliyun.com', 'www.qianwen.com', 'qianwen.com'] },
     yuanbao: { id: 'yuanbao', name: '腾讯元宝', hosts: ['yuanbao.tencent.com', 'yuanbao.qq.com', 'yuanbao.tencent.cn'] },
   };
@@ -533,7 +531,7 @@
           showTooltip(`已生成 ${count} 张卡片`, 3000);
         }
       } else {
-        throw new Error(response?.error || '后端处理失败');
+        throw new Error(response?.error || 'Memora 客户端处理失败');
       }
     } catch (error) {
       console.error('[LLM知识库] 抓取异常:', error);
@@ -545,7 +543,7 @@
       } else if (/401|invalid.*key|unauthorized|认证/.test(msg)) {
         tip = 'API Key 无效，请检查设置后刷新页面';
       } else if (/ECONNREFUSED|connect.*fail|未响应|reach/.test(msg)) {
-        tip = '后端未启动，请刷新页面';
+        tip = 'Memora 客户端未启动，请先启动客户端';
       } else if (/DOM.*提取|未检测到|未能.*提取/.test(msg)) {
         tip = '页面结构异常，请刷新页面重试';
       }
@@ -570,11 +568,9 @@
     switch (platform) {
       case 'doubao': return captureDoubao();
       case 'chatgpt': return captureChatGPT();
-      case 'claude': return captureClaude();
       case 'deepseek': return captureDeepSeek();
       case 'gemini': return captureGemini();
       case 'kimi': return captureKimi();
-      case 'minimax': return captureMiniMax();
       case 'qwen': return captureQwen();
       case 'yuanbao': return captureYuanbao();
       default: return { error: `不支持的平台: ${platform}` };
