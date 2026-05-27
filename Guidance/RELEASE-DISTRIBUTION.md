@@ -15,12 +15,11 @@
 
 ## Zip 顶层结构
 
-两个平台的 zip 都保持相同顶层结构：
+两个平台的 zip 都保持相同顶层结构。用户解压 zip 后，第一层直接看到 `plugin/` 和 `client/` 两个主文件夹：
 
 ```text
-Memora-<platform>/
-  plugin/
-  client/
+plugin/
+client/
 ```
 
 ### `plugin/`
@@ -59,6 +58,6 @@ macOS:
 ## 发布注意事项
 
 - Windows 和 macOS 分开发布 zip，不混放平台二进制。
-- zip 内顶层目录命名、`plugin/` 与 `client/` 两个主文件夹必须稳定。
+- zip 内 `plugin/` 与 `client/` 两个主文件夹必须稳定。
 - 不把 `.env`、本地数据库、测试 capture JSON、开发缓存、`node_modules` 打进 release。
 - 客户端和插件必须来自同一次版本构建，避免 API 字段或支持平台说明不一致。

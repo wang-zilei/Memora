@@ -1,0 +1,173 @@
+name: Build Release Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, for example v0.1.0"
+        required: true
+        default: "v0.1.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            os: windows-latest
+            zip_name: Memora-windows.zip
+          - platform: mac
+            os: macos-latest
+            zip_name: Memora-mac.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: demo/web/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: demo/web
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Tauri app
+        run: cargo tauri build
+
+      - name: Prepare Windows release zip
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packageDir = "release\Memora-windows"
+          New-Item -ItemType Directory -Force "$packageDir\plugin" | Out-Null
+          New-Item -ItemType Directory -Force "$packageDir\client" | Out-Null
+
+          Copy-Item demo\extension\manifest.json "$packageDir\plugin\"
+          Copy-Item demo\extension\background.js "$packageDir\plugin\"
+          Copy-Item demo\extension\content.js "$packageDir\plugin\"
+          Copy-Item demo\extension\popup.html "$packageDir\plugin\"
+          Copy-Item demo\extension\popup.js "$packageDir\plugin\"
+          Copy-Item demo\extension\icons "$packageDir\plugin\" -Recurse
+
+          $clientGlobs = @(
+            "src-tauri\target\release\bundle\nsis\*.exe",
+            "src-tauri\target\release\bundle\msi\*.msi",
+            "src-tauri\target\release\*.exe"
+          )
+          foreach ($glob in $clientGlobs) {
+            Get-ChildItem $glob -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName "$packageDir\client\"
+            }
+          }
+
+          if (-not (Get-ChildItem "$packageDir\client" -File -Recurse)) {
+            throw "No Windows client artifact found."
+          }
+
+          Compress-Archive -Path "$packageDir\plugin", "$packageDir\client" -DestinationPath "release\Memora-windows.zip" -Force
+
+      - name: Prepare macOS release zip
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="release/Memora-mac"
+          mkdir -p "$package_dir/plugin" "$package_dir/client"
+
+          cp demo/extension/manifest.json "$package_dir/plugin/"
+          cp demo/extension/background.js "$package_dir/plugin/"
+          cp demo/extension/content.js "$package_dir/plugin/"
+          cp demo/extension/popup.html "$package_dir/plugin/"
+          cp demo/extension/popup.js "$package_dir/plugin/"
+          cp -R demo/extension/icons "$package_dir/plugin/"
+
+          shopt -s nullglob
+          client_files=(
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/llm-knowledge-base
+          )
+          if [ ${#client_files[@]} -eq 0 ]; then
+            echo "No macOS client artifact found." >&2
+            exit 1
+          fi
+          cp -R "${client_files[@]}" "$package_dir/client/"
+
+          (cd "$package_dir" && zip -qry "../Memora-mac.zip" plugin client)
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.zip_name }}
+          path: release/${{ matrix.zip_name }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.version }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          tag="${{ steps.release_tag.outputs.tag }}"
+          assets=(release-assets/**/Memora-*.zip)
+          if [ ${#assets[@]} -ne 2 ]; then
+            echo "Expected 2 release zips, found ${#assets[@]}." >&2
+            printf '%s\n' "${assets[@]}"
+            exit 1
+          fi
+
+          notes="Windows and macOS release packages. Each zip contains plugin/ and client/ folders."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --title "Memora $tag" --notes "$notes"
+          fi
