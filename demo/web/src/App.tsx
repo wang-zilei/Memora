@@ -17,7 +17,7 @@ import trashIcon from './assets/delete.svg'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
 
-const CARD_LIST_PAGE_SIZE = 12
+const CARD_LIST_PAGE_SIZE = 9
 
 /** 质检清洗：移除 markdown 格式标识和转义字符（前端兜底） */
 function sanitizeContent(text: string): string {
@@ -43,6 +43,83 @@ function extractParagraphs(html: string): string[] {
   div.innerHTML = html
   const ps = Array.from(div.querySelectorAll('p'))
   return ps.map(p => p.textContent?.trim() || '').filter(Boolean)
+}
+
+type UiIconName =
+  | 'format_bold' | 'format_italic' | 'format_underlined' | 'border_color'
+  | 'refresh' | 'settings' | 'chevron_left' | 'chevron_right'
+  | 'arrow_back' | 'edit' | 'download' | 'description' | 'picture_as_pdf'
+  | 'image' | 'more_vert' | 'arrow_drop_down' | 'link' | 'network_check'
+  | 'check_circle' | 'error' | 'rocket_launch'
+
+function UiIcon({ name, className = '' }: { name: UiIconName; className?: string }) {
+  const cls = `ui-icon ${className}`.trim()
+  const strokeProps = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+
+  const textIcon = (label: string, style: React.CSSProperties = {}) => (
+    <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <text
+        x="12"
+        y="16"
+        textAnchor="middle"
+        fontFamily="Georgia, serif"
+        fontSize="15"
+        fontWeight="700"
+        fontStyle={style.fontStyle}
+        textDecoration={style.textDecoration}
+        fill="currentColor"
+      >
+        {label}
+      </text>
+    </svg>
+  )
+
+  switch (name) {
+    case 'format_bold': return textIcon('B')
+    case 'format_italic': return textIcon('I', { fontStyle: 'italic' })
+    case 'format_underlined': return textIcon('U', { textDecoration: 'underline' })
+    case 'border_color': return textIcon('H')
+    case 'refresh':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M20 6v5h-5" /><path {...strokeProps} d="M19.5 11A7.5 7.5 0 1 0 17 16.6" /></svg>
+    case 'settings':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} strokeWidth={1.45} d="M12.2 2.8h-.4a1.8 1.8 0 0 0-1.8 1.8v.3a1.8 1.8 0 0 1-.9 1.5l-.4.2a1.8 1.8 0 0 1-1.8 0l-.3-.2a1.8 1.8 0 0 0-2.4.7L4 7.5a1.8 1.8 0 0 0 .7 2.4l.3.2a1.8 1.8 0 0 1 .9 1.5v.8a1.8 1.8 0 0 1-.9 1.5l-.3.2a1.8 1.8 0 0 0-.7 2.4l.2.4a1.8 1.8 0 0 0 2.4.7l.3-.2a1.8 1.8 0 0 1 1.8 0l.4.2a1.8 1.8 0 0 1 .9 1.5v.3a1.8 1.8 0 0 0 1.8 1.8h.4a1.8 1.8 0 0 0 1.8-1.8v-.3a1.8 1.8 0 0 1 .9-1.5l.4-.2a1.8 1.8 0 0 1 1.8 0l.3.2a1.8 1.8 0 0 0 2.4-.7l.2-.4a1.8 1.8 0 0 0-.7-2.4l-.3-.2a1.8 1.8 0 0 1-.9-1.5v-.8a1.8 1.8 0 0 1 .9-1.5l.3-.2a1.8 1.8 0 0 0 .7-2.4l-.2-.4a1.8 1.8 0 0 0-2.4-.7l-.3.2a1.8 1.8 0 0 1-1.8 0l-.4-.2a1.8 1.8 0 0 1-.9-1.5v-.3a1.8 1.8 0 0 0-1.8-1.8Z" /><circle {...strokeProps} strokeWidth={1.55} cx="12" cy="12" r="3.1" /></svg>
+    case 'chevron_left':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M15 18l-6-6 6-6" /></svg>
+    case 'chevron_right':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M9 6l6 6-6 6" /></svg>
+    case 'arrow_back':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M19 12H5M11 6l-6 6 6 6" /></svg>
+    case 'edit':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path {...strokeProps} d="M14.5 7.5l2 2" /></svg>
+    case 'download':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M12 4v10M8 10l4 4 4-4M5 20h14" /></svg>
+    case 'description':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M7 3h7l4 4v14H7V3Z" /><path {...strokeProps} d="M14 3v5h5M9.5 12h5M9.5 16h5" /></svg>
+    case 'picture_as_pdf':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M7 3h7l4 4v14H7V3Z" /><path {...strokeProps} d="M14 3v5h5" /><text x="12" y="17" textAnchor="middle" fontSize="5.5" fontWeight="800" fill="currentColor">PDF</text></svg>
+    case 'image':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect {...strokeProps} x="4" y="5" width="16" height="14" rx="2" /><circle {...strokeProps} cx="9" cy="10" r="1.4" /><path {...strokeProps} d="M7 17l4-4 3 3 2-2 3 3" /></svg>
+    case 'more_vert':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="6" r="1.7" fill="currentColor" /><circle cx="12" cy="12" r="1.7" fill="currentColor" /><circle cx="12" cy="18" r="1.7" fill="currentColor" /></svg>
+    case 'arrow_drop_down':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 9.5h10L12 15Z" fill="currentColor" /></svg>
+    case 'link':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M10 13.5a4 4 0 0 0 5.7 0l2.1-2.1a4 4 0 0 0-5.7-5.7l-1.1 1.1" /><path {...strokeProps} d="M14 10.5a4 4 0 0 0-5.7 0l-2.1 2.1a4 4 0 0 0 5.7 5.7l1.1-1.1" /></svg>
+    case 'network_check':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M4 17c4-6 12-6 16 0" /><path {...strokeProps} d="M8 13c2.6-2.5 5.4-2.5 8 0" /><path {...strokeProps} d="M11 17l2 2 4-5" /></svg>
+    case 'check_circle':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle {...strokeProps} cx="12" cy="12" r="8" /><path {...strokeProps} d="M8.5 12.2l2.3 2.3 4.9-5" /></svg>
+    case 'error':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle {...strokeProps} cx="12" cy="12" r="8" /><path {...strokeProps} d="M12 7.5v5.2M12 16.5h.01" /></svg>
+    case 'rocket_launch':
+      return <svg className={cls} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path {...strokeProps} d="M13 5c3.5.3 5.7-1.8 6-2.8.9 3.3.1 6.5-2.3 8.9l-5.1 5.1-3.8-3.8Z" /><path {...strokeProps} d="M7.8 12.4 5 13l.8-3.6M11.6 16.2 11 19l3.6-.8M7 17l-2 2" /><circle {...strokeProps} cx="14.5" cy="7.5" r="1.4" /></svg>
+  }
 }
 
 /** TipTap 富文本编辑器（B/I/U/高亮） */
@@ -93,16 +170,16 @@ function TipTapEditor({ content, onSave, placeholder }: {
     <div className="tiptap-wrapper">
       <div className="tiptap-toolbar">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} title="加粗" aria-label="加粗">
-          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_bold</span>
+          <UiIcon name="format_bold" className="format-symbol" />
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''} title="斜体" aria-label="斜体">
-          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_italic</span>
+          <UiIcon name="format_italic" className="format-symbol" />
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={editor.isActive('underline') ? 'is-active' : ''} title="下划线" aria-label="下划线">
-          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_underlined</span>
+          <UiIcon name="format_underlined" className="format-symbol" />
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''} title="高亮" aria-label="高亮">
-          <span className="material-symbols-rounded format-symbol" aria-hidden="true">border_color</span>
+          <UiIcon name="border_color" className="format-symbol" />
         </button>
       </div>
       <EditorContent editor={editor} />
@@ -252,7 +329,6 @@ function App() {
         currentTag={currentTag}
         onCardTypeChange={(type) => { setCurrentCardType(type); setCurrentPage(1); }}
         onTagChange={(tag) => { setCurrentTag(tag); setCurrentCardType('全部'); setCurrentPage(1); }}
-        onOpenSettings={() => setPage('settings')}
       />
 
       <div className="main-content">
@@ -268,6 +344,7 @@ function App() {
             refreshing={refreshingCards}
             onPageChange={setCurrentPage}
             onTotalCardsChange={setTotalCards}
+            onOpenSettings={() => setPage('settings')}
             onCardClick={handleCardClick}
             currentCardType={currentCardType}
             currentTag={currentTag}
@@ -299,14 +376,13 @@ const CARD_TYPES = [
   '文本处理', '规划决策', '头脑风暴', '交互陪伴', '其他',
 ] as const
 
-function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardTypeChange, onTagChange, onOpenSettings }: {
+function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardTypeChange, onTagChange }: {
   currentPage: Page
   onNavigate: (p: Page) => void
   currentCardType: string
   currentTag: string
   onCardTypeChange: (type: string) => void
   onTagChange: (tag: string) => void
-  onOpenSettings: () => void
 }) {
   const [tags, setTags] = useState<TagInfo[]>([])
 
@@ -355,16 +431,18 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
 
         {/* Group 2: 意图分类 */}
         <div className="nav-section-label">Intent</div>
-        {CARD_TYPES.map(t => (
-          <div
-            key={t}
-            className={`nav-item nav-item-compact ${currentPage === 'list' && currentCardType === t ? 'active' : ''}`}
-            onClick={() => { onNavigate('list'); onCardTypeChange(t); }}
-          >
-            <NavIcon name={t} />
-            <span>{t}</span>
-          </div>
-        ))}
+        <div className="intent-list">
+          {CARD_TYPES.map(t => (
+            <div
+              key={t}
+              className={`nav-item nav-item-compact ${currentPage === 'list' && currentCardType === t ? 'active' : ''}`}
+              onClick={() => { onNavigate('list'); onCardTypeChange(t); }}
+            >
+              <NavIcon name={t} />
+              <span>{t}</span>
+            </div>
+          ))}
+        </div>
 
         {/* Group 3: 全部标签 */}
         <div className="nav-section-label">Tags</div>
@@ -386,19 +464,13 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
         </div>
       </div>
 
-      {/* 底部：设置按钮 */}
-      <div className="sidebar-footer">
-        <button className="settings-btn" onClick={onOpenSettings} title="设置">
-          <span className="material-symbols-rounded">settings</span>
-        </button>
-      </div>
     </div>
   )
 }
 
 // ============ 卡片列表组件 ============
 
-function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onTotalCardsChange, onCardClick, currentCardType, currentTag, onTagClear }: {
+function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onTotalCardsChange, onOpenSettings, onCardClick, currentCardType, currentTag, onTagClear }: {
   cards: KnowledgeCardSummary[]
   totalCards: number
   currentPage: number
@@ -409,6 +481,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   refreshing: boolean
   onPageChange: (page: number) => void
   onTotalCardsChange: (update: (prev: number) => number) => void
+  onOpenSettings: () => void
   onCardClick: (id: string) => void
   currentCardType: string
   currentTag: string
@@ -511,21 +584,19 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
           <button onClick={onSearch}>搜索</button>
         </div>
 
-        <div className="list-toolbar">
-          <div className="list-meta">
-            {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
-          </div>
           <button
-            className={`list-refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
+            className={`list-refresh-btn list-refresh-btn--icon ${refreshing ? 'is-refreshing' : ''}`}
             onClick={onRefresh}
             disabled={refreshing}
             title="刷新卡片列表"
             aria-label="刷新卡片列表"
           >
-            <span className="material-symbols-rounded">refresh</span>
-            <span>刷新</span>
+            <UiIcon name="refresh" />
           </button>
-        </div>
+
+        <button className="settings-btn settings-btn--top" onClick={onOpenSettings} title="设置" aria-label="设置">
+          <UiIcon name="settings" />
+        </button>
       </div>
 
       {currentTag && (
@@ -620,15 +691,20 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
             <div className="pagination">
               <button
                 disabled={currentPage <= 1}
+                title="上一页"
+                aria-label="上一页"
                 onClick={() => onPageChange(currentPage - 1)}
-              >上一页</button>
-              <span className="pagination-current">
-                {currentPage} / {totalPages}
-              </span>
+              >
+                <UiIcon name="chevron_left" />
+              </button>
               <button
                 disabled={currentPage >= totalPages}
+                title="下一页"
+                aria-label="下一页"
                 onClick={() => onPageChange(currentPage + 1)}
-              >下一页</button>
+              >
+                <UiIcon name="chevron_right" />
+              </button>
             </div>
           )}
         </>
@@ -1100,7 +1176,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
       <div className="detail-hero">
         <div className="detail-title-group">
           <button className="icon-btn" onClick={onBack}>
-            <span className="material-symbols-rounded">arrow_back</span>
+            <UiIcon name="arrow_back" />
           </button>
           {editingTitle ? (
             <input
@@ -1120,13 +1196,13 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
         <div className="detail-actions">
           {!editingTitle && (
             <button className="icon-btn" onClick={handleStartEditTitle}>
-              <span className="material-symbols-rounded">edit</span>
+              <UiIcon name="edit" />
             </button>
           )}
           {!editingTitle && (
             <div className="dropdown-wrapper">
               <button className="icon-btn" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting} title="导出卡片">
-                <span className="material-symbols-rounded">download</span>
+                <UiIcon name="download" />
               </button>
               {showExportMenu && (
                 <>
@@ -1136,15 +1212,15 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
                   />
                   <div className="dropdown-menu">
                     <button className="dropdown-item" onClick={() => handleExport('txt')}>
-                      <span className="material-symbols-rounded">description</span>
+                      <UiIcon name="description" />
                       导出为 TXT
                     </button>
                     <button className="dropdown-item" onClick={() => handleExport('pdf')}>
-                      <span className="material-symbols-rounded">picture_as_pdf</span>
+                      <UiIcon name="picture_as_pdf" />
                       导出为 PDF
                     </button>
                     <button className="dropdown-item" onClick={() => handleExport('image')}>
-                      <span className="material-symbols-rounded">image</span>
+                      <UiIcon name="image" />
                       导出为图片
                     </button>
                   </div>
@@ -1160,7 +1236,7 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
           ) : (
             <div className="dropdown-wrapper">
               <button className="icon-btn" onClick={() => setShowDropdown(!showDropdown)}>
-                <span className="material-symbols-rounded">more_vert</span>
+                <UiIcon name="more_vert" />
               </button>
               {showDropdown && (
                 <>
@@ -1219,95 +1295,97 @@ ${platformName} | ${card.source?.captured_at ? new Date(card.source.captured_at)
         </div>
 
         {activeTab === 'overview' && (
-          <>
-            {/* 核心问题 */}
-            {card.original_question && (
-              <div className="detail-section detail-section--question">
-                <div className="section-title">核心问题</div>
-                <div className="question-box">
-                  <div className="section-text">{sanitizeContent(card.original_question)}</div>
+          <div className="detail-overview">
+            <div className="detail-overview-body">
+              {/* 核心问题 */}
+              {card.original_question && (
+                <div className="detail-section detail-section--question">
+                  <div className="section-title">核心问题</div>
+                  <div className="question-box">
+                    <div className="section-text">{sanitizeContent(card.original_question)}</div>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {/* 卡片叙事（可编辑） */}
-            <div className="detail-section detail-section--conclusion">
-              <div className="section-title">关键结论</div>
-              <TipTapEditor
-                content={card.narrative || ''}
-                onSave={(html) => updateCard(cardId, { narrative: html }).catch(e => console.error('保存 narrative 失败:', e))}
-                placeholder="输入关键结论..."
-              />
-            </div>
-
-            <hr className="overview-divider" />
-
-            <div className="detail-section detail-meta-strip">
-              <div className="detail-tags">
-                <div className="dropdown-wrapper card-type-wrapper">
-                  <button
-                    className="card-type-badge card-type-badge--editable"
-                    style={{
-                      background: INTENT_COLORS[card.card_type] || '#e8e8e8',
-                      color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
-                    }}
-                    onClick={() => setShowTypeMenu(!showTypeMenu)}
-                  >
-                    {card.card_type}
-                    <span className="material-symbols-rounded card-type-arrow">arrow_drop_down</span>
-                  </button>
-                </div>
-                {showTypeMenu && CARD_TYPES.map(t => (
-                  <button
-                    key={t}
-                    className={`intent-option-chip ${t === card.card_type ? 'intent-option-chip--active' : ''}`}
-                    onClick={() => handleChangeCardType(t)}
-                    style={{
-                      background: INTENT_COLORS[t] || '#e8e8e8',
-                      color: INTENT_TEXT_COLORS[t] || '#4b5563',
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-                {(card.tags || []).map((tag, i) => (
-                  <span key={i} className="detail-tag">{tag}</span>
-                ))}
-              </div>
-            </div>
-
-            {/* 来源行 */}
-            <div className="detail-section source-row">
-              <span className="source-platform">
-                {platformName}
-              </span>
-              {card.source?.captured_at && (
-                <span>{new Date(card.source.captured_at).toLocaleString('zh-CN')}</span>
               )}
+
+              {/* 卡片叙事（可编辑） */}
+              <div className="detail-section detail-section--conclusion">
+                <div className="section-title">关键结论</div>
+                <TipTapEditor
+                  content={card.narrative || ''}
+                  onSave={(html) => updateCard(cardId, { narrative: html }).catch(e => console.error('保存 narrative 失败:', e))}
+                  placeholder="输入关键结论..."
+                />
+              </div>
             </div>
 
-            {/* 回到原始对话 */}
-            {card.source?.url && (
-              <button
-                className="play-link"
-                onClick={async () => {
-                  const url = card.source!.url
-                  try {
-                    await fetch('/api/open-url', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ url }),
-                    })
-                  } catch {
-                    window.open(url, '_blank', 'noopener,noreferrer')
-                  }
-                }}
-              >
-                <span className="material-symbols-rounded">link</span>
-                回到原始对话
-              </button>
-            )}
-          </>
+            <div className="detail-footer-lock">
+              <div className="detail-meta-strip">
+                <div className="detail-tags">
+                  <div className="dropdown-wrapper card-type-wrapper">
+                    <button
+                      className="card-type-badge card-type-badge--editable"
+                      style={{
+                        background: INTENT_COLORS[card.card_type] || '#e8e8e8',
+                        color: INTENT_TEXT_COLORS[card.card_type] || '#4b5563',
+                      }}
+                      onClick={() => setShowTypeMenu(!showTypeMenu)}
+                    >
+                      {card.card_type}
+                      <UiIcon name="arrow_drop_down" className="card-type-arrow" />
+                    </button>
+                  </div>
+                  {showTypeMenu && CARD_TYPES.map(t => (
+                    <button
+                      key={t}
+                      className={`intent-option-chip ${t === card.card_type ? 'intent-option-chip--active' : ''}`}
+                      onClick={() => handleChangeCardType(t)}
+                      style={{
+                        background: INTENT_COLORS[t] || '#e8e8e8',
+                        color: INTENT_TEXT_COLORS[t] || '#4b5563',
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  {(card.tags || []).map((tag, i) => (
+                    <span key={i} className="detail-tag">{tag}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="source-row">
+                {card.source?.url ? (
+                  <button
+                    className="source-platform source-platform--link"
+                    title="打开原始对话"
+                    aria-label="打开原始对话"
+                    onClick={async () => {
+                      const url = card.source!.url
+                      try {
+                        await fetch('/api/open-url', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ url }),
+                        })
+                      } catch {
+                        window.open(url, '_blank', 'noopener,noreferrer')
+                      }
+                    }}
+                  >
+                    <UiIcon name="link" />
+                    <span>{platformName}</span>
+                  </button>
+                ) : (
+                  <span className="source-platform">
+                    {platformName}
+                  </span>
+                )}
+                {card.source?.captured_at && (
+                  <span className="source-time">{new Date(card.source.captured_at).toLocaleString('zh-CN')}</span>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'conversation' && (
@@ -1408,7 +1486,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
     <div className="settings-page">
       <div className="settings-header">
         <button className="icon-btn" onClick={onBack}>
-          <span className="material-symbols-rounded">arrow_back</span>
+          <UiIcon name="arrow_back" />
         </button>
         <h2>设置</h2>
       </div>
@@ -1456,7 +1534,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
             onClick={handleTestConnection}
             disabled={testing || saving}
           >
-            <span className="material-symbols-rounded">network_check</span>
+            <UiIcon name="network_check" />
             {testing ? '测试中...' : '测试连接'}
           </button>
           <button
@@ -1470,22 +1548,20 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
 
         {testResult && (
           <div className={`test-result ${testResult.success ? 'test-result--success' : 'test-result--error'}`}>
-            <span className="material-symbols-rounded">
-              {testResult.success ? 'check_circle' : 'error'}
-            </span>
+            <UiIcon name={testResult.success ? 'check_circle' : 'error'} />
             <span>{testResult.detail}</span>
           </div>
         )}
 
         {message && !message.startsWith('保存失败') && (
           <div className="save-message save-message--success">
-            <span className="material-symbols-rounded">check_circle</span>
+            <UiIcon name="check_circle" />
             <span>{message}</span>
           </div>
         )}
         {message && message.startsWith('保存失败') && (
           <div className="save-message save-message--error">
-            <span className="material-symbols-rounded">error</span>
+            <UiIcon name="error" />
             <span>{message}</span>
           </div>
         )}
@@ -1493,7 +1569,7 @@ function SettingsPage({ onBack }: { onBack: () => void }) {
 
       <div className="quick-start-card">
         <div className="quick-start-title">
-          <span className="material-symbols-rounded">rocket_launch</span>
+          <UiIcon name="rocket_launch" />
           快速开始
         </div>
         <ol className="quick-start-steps">

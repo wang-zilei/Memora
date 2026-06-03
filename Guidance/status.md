@@ -5,17 +5,20 @@
 > Ins 简洁高级风，仅改视觉层，不动 Rust 后端/SQLite/AI Pipeline/API
 
 ## 2. 进行中
-- Tauri 客户端人工验收
-- 验收通过后的 git 提交、release 编译与分发打包
+- 2026-06-03 UI 收口：当前侧边栏与主页面比例已认可，继续压缩滚动、密度和控件存在感。
+- 本轮仍仅允许视觉层调整：`demo/web/src/App.tsx`、`demo/web/src/index.css` 与必要 Guidance 状态/日志。
 
 ## 3. 待解决
-- [x] UI/UX 逻辑审计与视觉施工计划
-- [x] 列表页 ins minimal 视觉迁移
-- [x] 详情页、收藏页、统计页、设置页同风格适配
-- [x] `npm run build` 通过
-- [ ] Tauri 客户端人工验收
+- [ ] 侧边栏一屏呈现：Intent 与 Tags 局部滚动，确保具体标签文字可见。
+- [ ] 全局禁止 App/主页面上下滚动；仅允许局部区域滚动。
+- [ ] 列表页保留计数状态与统计能力，但不显示计数 button/chip。
+- [ ] 搜索、刷新、设置同一行；刷新放在搜索与设置之间，9 张卡片一页且列表页不滚动。
+- [ ] 底部分页改小号左右 icon，移除数字，靠近窗口底部悬浮。
+- [ ] `Library / Intent / Tags` 使用不斜体、正式感 serif 字体。
+- [ ] 侧边栏 active 提示改轻量渐变/边框，避免与按钮拥挤。
+- [ ] 详情页不触发全局滚动；关键结论局部滚动；底部 tags + 平台/链接/时间固定两行。
+- [ ] Tauri 客户端人工验收，通过后再 git commit、release build 与分发打包。
 - [ ] 中文输入法在 TipTap 中的兼容问题 (E-028)
-- [ ] ins minimal 风格在不同分辨率下的适配
 
 ## 4. 当前约束
 - 不修改 Rust 后端、SQLite schema、AI Pipeline、prompt、扩展抓取逻辑
@@ -24,8 +27,6 @@
 - 设计方向：ins 简洁高级风，参考 `design/ins-minimal-prototype/`。不采用暗黑系，不采用便签折角和多色卡片
 
 ## 5. 最近完成
-- 05-27: 插件发布前收口 (manifest 权限 + popup 文案 + 平台收口)
-- 05-27: Release 分发结构约定 (Windows/macOS zip + plugin/client 结构)
-- 05-27: 列表页抓取后刷新修复 (刷新按钮 + 6秒静默刷新)
-- 05-27: 桌面图标黑边修复 (安全 viewBox + 透明底板)
-- 05-27: 富文本编辑集成完成 (TipTap B/I/U/高亮 + 800ms防抖保存)
+- 2026-06-03: ins minimal 视觉迁移已多轮迭代，`npm run build` 已通过。
+- 2026-06-03: 删除确认链路修复，卡片列表固定 3 列，列表分页改为 9 张/页。
+- 2026-06-03: 设置入口移至列表页顶部控制行，侧边栏腾出空间。

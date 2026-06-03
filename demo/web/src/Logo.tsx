@@ -128,30 +128,38 @@ export function LogoWordmark({ className }: { className?: string }) {
   );
 }
 
-// 导航项图标 — Google Material Symbols Rounded（字体图标）
+// 导航项图标 — 本地 SVG，避免远程字体失败时出现 ligature 文本
 export function NavIcon({ name }: { name: string }) {
-  const iconMap: Record<string, string> = {
-    '首页': 'home',
-    '收藏': 'star',
-    '统计': 'bar_chart',
-    '概念理解': 'lightbulb',
-    '事实查询': 'search',
-    '技能学习': 'school',
-    '操作指南': 'list_alt',
-    '内容创作': 'edit_note',
-    '文本处理': 'sync_alt',
-    '规划决策': 'assignment',
-    '头脑风暴': 'auto_awesome',
-    '交互陪伴': 'forum',
-    '其他': 'folder_open',
+  const strokeProps = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+
+  const iconMap: Record<string, JSX.Element> = {
+    '首页': <><path {...strokeProps} d="M4 11.5 12 5l8 6.5" /><path {...strokeProps} d="M6.5 10.5V20h11V10.5" /><path {...strokeProps} d="M10 20v-5h4v5" /></>,
+    '收藏': <path {...strokeProps} d="m12 4 2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 16l-4.6 2.4.9-5.2-3.8-3.7 5.2-.8Z" />,
+    '统计': <><path {...strokeProps} d="M5 19V9" /><path {...strokeProps} d="M12 19V5" /><path {...strokeProps} d="M19 19v-7" /></>,
+    '概念理解': <><path {...strokeProps} d="M9 18h6" /><path {...strokeProps} d="M10 21h4" /><path {...strokeProps} d="M8 13a6 6 0 1 1 8 0c-1.2 1-1.5 1.8-1.5 3h-5c0-1.2-.3-2-1.5-3Z" /></>,
+    '事实查询': <><circle {...strokeProps} cx="11" cy="11" r="5.5" /><path {...strokeProps} d="m16 16 4 4" /></>,
+    '技能学习': <><path {...strokeProps} d="m3 9 9-4 9 4-9 4Z" /><path {...strokeProps} d="M7 11.5v4c2.8 1.7 7.2 1.7 10 0v-4" /></>,
+    '操作指南': <><path {...strokeProps} d="M7 6h12" /><path {...strokeProps} d="M7 12h12" /><path {...strokeProps} d="M7 18h12" /><circle cx="4" cy="6" r="1" fill="currentColor" /><circle cx="4" cy="12" r="1" fill="currentColor" /><circle cx="4" cy="18" r="1" fill="currentColor" /></>,
+    '内容创作': <><path {...strokeProps} d="M5 19h4l10-10a2 2 0 0 0-3-3L6 16v3Z" /><path {...strokeProps} d="m14.5 7.5 2 2" /></>,
+    '文本处理': <><path {...strokeProps} d="M7 7h10" /><path {...strokeProps} d="M7 12h7" /><path {...strokeProps} d="M7 17h10" /></>,
+    '规划决策': <><rect {...strokeProps} x="5" y="4" width="14" height="18" rx="2" /><path {...strokeProps} d="M9 8h6M9 13h6M9 18h3" /></>,
+    '头脑风暴': <><path {...strokeProps} d="M12 3l1.1 3.2L16 7.5l-2.9 1.3L12 12l-1.1-3.2L8 7.5l2.9-1.3Z" /><path {...strokeProps} d="M6 13l.7 2.1L9 16l-2.3.9L6 19l-.7-2.1L3 16l2.3-.9Z" /><path {...strokeProps} d="M18 13l.7 2.1L21 16l-2.3.9L18 19l-.7-2.1L15 16l2.3-.9Z" /></>,
+    '交互陪伴': <><path {...strokeProps} d="M5 6h14v9H9l-4 4Z" /><path {...strokeProps} d="M9 10h6M9 13h4" /></>,
+    '其他': <><path {...strokeProps} d="M4 7h7l2 2h7v10H4Z" /><path {...strokeProps} d="M4 7v-2h6l2 2" /></>,
   };
 
   const icon = iconMap[name];
   if (!icon) return null;
 
   return (
-    <span className="material-symbols-rounded nav-item-icon" style={{ fontSize: 20, flexShrink: 0, opacity: 0.65 }}>
+    <svg className="nav-item-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       {icon}
-    </span>
+    </svg>
   );
 }
