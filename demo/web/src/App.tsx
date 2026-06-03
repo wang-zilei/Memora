@@ -93,16 +93,16 @@ function TipTapEditor({ content, onSave, placeholder }: {
     <div className="tiptap-wrapper">
       <div className="tiptap-toolbar">
         <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={editor.isActive('bold') ? 'is-active' : ''} title="加粗" aria-label="加粗">
-          <span className="format-icon format-icon--bold" aria-hidden="true" />
+          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_bold</span>
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={editor.isActive('italic') ? 'is-active' : ''} title="斜体" aria-label="斜体">
-          <span className="format-icon format-icon--italic" aria-hidden="true" />
+          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_italic</span>
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={editor.isActive('underline') ? 'is-active' : ''} title="下划线" aria-label="下划线">
-          <span className="format-icon format-icon--underline" aria-hidden="true" />
+          <span className="material-symbols-rounded format-symbol" aria-hidden="true">format_underlined</span>
         </button>
         <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={editor.isActive('highlight') ? 'is-active' : ''} title="高亮" aria-label="高亮">
-          <span className="format-icon format-icon--highlight" aria-hidden="true" />
+          <span className="material-symbols-rounded format-symbol" aria-hidden="true">border_color</span>
         </button>
       </div>
       <EditorContent editor={editor} />
@@ -121,7 +121,7 @@ const INTENT_COLORS: Record<string, string> = {
   '规划决策': '#fff0e0',
   '头脑风暴': '#fffde0',
   '交互陪伴': '#e0fff8',
-  '其他': '#e8e8e8',
+  '其他': '#eeeeee',
 }
 
 const INTENT_TEXT_COLORS: Record<string, string> = {
@@ -267,6 +267,7 @@ function App() {
             onRefresh={handleRefreshCards}
             refreshing={refreshingCards}
             onPageChange={setCurrentPage}
+            onTotalCardsChange={setTotalCards}
             onCardClick={handleCardClick}
             currentCardType={currentCardType}
             currentTag={currentTag}
@@ -329,6 +330,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
       {/* 导航区域 */}
       <div className="sidebar-nav">
         {/* Group 1: 主页面 */}
+        <div className="nav-section-label">Library</div>
         <div
           className={`nav-item ${isHomeActive ? 'active' : ''}`}
           onClick={() => { onNavigate('list'); onCardTypeChange('全部'); }}
@@ -352,7 +354,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
         </div>
 
         {/* Group 2: 意图分类 */}
-        <div className="nav-section-label">意图分类</div>
+        <div className="nav-section-label">Intent</div>
         {CARD_TYPES.map(t => (
           <div
             key={t}
@@ -365,7 +367,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
         ))}
 
         {/* Group 3: 全部标签 */}
-        <div className="nav-section-label">全部标签</div>
+        <div className="nav-section-label">Tags</div>
         <div className="tags-cloud">
           {tags.length === 0 ? (
             <span className="tags-empty">暂无标签</span>
@@ -396,7 +398,7 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
 
 // ============ 卡片列表组件 ============
 
-function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onCardClick, currentCardType, currentTag, onTagClear }: {
+function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onTotalCardsChange, onCardClick, currentCardType, currentTag, onTagClear }: {
   cards: KnowledgeCardSummary[]
   totalCards: number
   currentPage: number
@@ -406,6 +408,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
   onRefresh: () => void
   refreshing: boolean
   onPageChange: (page: number) => void
+  onTotalCardsChange: (update: (prev: number) => number) => void
   onCardClick: (id: string) => void
   currentCardType: string
   currentTag: string
@@ -458,14 +461,14 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
     const targetId = deleteTargetId
     setHiddenIds(prev => new Set([...prev, targetId]))
     setDeleteTargetId(null)
-    setTotalCards(prev => prev - 1)
+    onTotalCardsChange(prev => prev - 1)
     deleteCard(targetId).catch(err => {
       setHiddenIds(prev => {
         const next = new Set(prev)
         next.delete(targetId)
         return next
       })
-      setTotalCards(prev => prev + 1)
+      onTotalCardsChange(prev => prev + 1)
       console.error('Failed to delete card:', err)
     })
   }
@@ -496,15 +499,33 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
 
   return (
     <div className="page-shell list-page">
-      <div className="search-bar">
-        <input
-          type="text"
-          placeholder="搜索知识卡片..."
-          value={searchKeyword}
-          onChange={e => onSearchChange(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') onSearch() }}
-        />
-        <button onClick={onSearch}>搜索</button>
+      <div className="list-control-row">
+        <div className="search-bar">
+          <input
+            type="text"
+            placeholder="搜索知识卡片..."
+            value={searchKeyword}
+            onChange={e => onSearchChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onSearch() }}
+          />
+          <button onClick={onSearch}>搜索</button>
+        </div>
+
+        <div className="list-toolbar">
+          <div className="list-meta">
+            {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
+          </div>
+          <button
+            className={`list-refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
+            onClick={onRefresh}
+            disabled={refreshing}
+            title="刷新卡片列表"
+            aria-label="刷新卡片列表"
+          >
+            <span className="material-symbols-rounded">refresh</span>
+            <span>刷新</span>
+          </button>
+        </div>
       </div>
 
       {currentTag && (
@@ -514,22 +535,6 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
           <button className="tag-filter-clear" onClick={onTagClear}>清除筛选</button>
         </div>
       )}
-
-      <div className="list-toolbar">
-        <div className="list-meta">
-          {currentCardType === '全部' ? '全部' : `意图: ${currentCardType}`} · 共 {totalCards} 条
-        </div>
-        <button
-          className={`list-refresh-btn ${refreshing ? 'is-refreshing' : ''}`}
-          onClick={onRefresh}
-          disabled={refreshing}
-          title="刷新卡片列表"
-          aria-label="刷新卡片列表"
-        >
-          <span className="material-symbols-rounded">refresh</span>
-          <span>刷新</span>
-        </button>
-      </div>
 
       {visibleCards.length === 0 ? (
         <div className="empty-state">
