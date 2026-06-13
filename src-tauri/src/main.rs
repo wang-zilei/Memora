@@ -357,7 +357,7 @@ impl JsonParse for String {
 }
 
 // ============================================================
-// Conversation Cleaning（对齐早期 demo/server/capture.js）
+// Conversation Cleaning（对齐 Demo demo/server/capture.js）
 // ============================================================
 
 /// 规范化角色标识：user/human/1 → "user"，其余 → "assistant"
@@ -869,7 +869,6 @@ async fn update_card(
     app: AppHandle,
     id: String,
     title: Option<String>,
-    card_type: Option<String>,
     tags: Option<Vec<String>>,
     starred: Option<bool>,
     archived: Option<bool>,
@@ -884,10 +883,6 @@ async fn update_card(
     if let Some(t) = title {
         set_clauses.push("title = ?".to_string());
         params.push(serde_json::Value::String(t));
-    }
-    if let Some(ct) = card_type {
-        set_clauses.push("card_type = ?".to_string());
-        params.push(serde_json::Value::String(ct));
     }
     if let Some(ref t) = tags {
         set_clauses.push("tags_json = ?".to_string());
@@ -1171,22 +1166,10 @@ async fn update_settings(
 
 #[tauri::command]
 async fn validate_settings(
-    app: AppHandle,
+    _app: AppHandle,
     settings: std::collections::HashMap<String, String>,
 ) -> Result<serde_json::Value, String> {
-    let state = app.state::<AppState>();
-    let api_key_input = settings.get("apiKey").map(|s| s.trim()).unwrap_or("");
-    let api_key = if api_key_input.is_empty() || api_key_input == "__USE_SAVED_API_KEY__" {
-        sqlx::query_scalar::<_, String>(
-            "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
-        )
-        .fetch_optional(&state.db)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or("API Key 不能为空")?
-    } else {
-        api_key_input.to_string()
-    };
+    let api_key = settings.get("apiKey").ok_or("API Key 不能为空")?;
     let api_url = settings.get("apiUrl").cloned().unwrap_or_else(|| "https://api.openai.com/v1".to_string());
     let model = settings.get("model").cloned().unwrap_or_else(|| "gpt-3.5-turbo".to_string());
 
@@ -1311,9 +1294,7 @@ async fn http_capture(
             "rawId": raw_id,
             "cleanId": clean_id,
             "cardId": card_id,
-            "card_id": card_id,
             "needsApiKey": true,
-            "needs_api_key": true,
         })));
     }
 
@@ -1371,9 +1352,7 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
-                "card_id": card_id,
                 "cardCount": card_count,
-                "card_count": card_count,
                 "card": {
                     "title": first.title,
                     "card_type": first.card_type,
@@ -1396,11 +1375,8 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
-                "card_id": card_id,
                 "cardCount": 0,
-                "card_count": 0,
                 "aiError": "AI 总结未产出有效内容，可能是 API 返回格式异常",
-                "ai_error": "AI 总结未产出有效内容，可能是 API 返回格式异常",
                 "card": {
                     "title": title,
                     "card_type": "其他",
@@ -1422,9 +1398,7 @@ async fn http_capture(
                 "rawId": raw_id,
                 "cleanId": clean_id,
                 "cardId": card_id,
-                "card_id": card_id,
                 "aiError": e,
-                "ai_error": e,
                 "card": {
                     "title": title,
                     "card_type": "其他",
@@ -1467,9 +1441,7 @@ async fn http_status(
         "success": true,
         "version": env!("CARGO_PKG_VERSION"),
         "totalCards": card_count,
-        "card_count": card_count,
         "hasApiKey": has_api_key.is_some(),
-        "has_api_key": has_api_key.is_some(),
     })))
 }
 
@@ -1870,24 +1842,10 @@ async fn http_update_settings(
 }
 
 async fn http_validate_settings(
-    State(pool): State<SharedPool>,
+    State(_pool): State<SharedPool>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let api_key_input = body["apiKey"].as_str().unwrap_or("").trim();
-    let api_key = if api_key_input.is_empty() || api_key_input == "__USE_SAVED_API_KEY__" {
-        sqlx::query_scalar::<_, String>(
-            "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
-        )
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "error": e.to_string() }))))?
-        .unwrap_or_default()
-    } else {
-        api_key_input.to_string()
-    };
-    if api_key.is_empty() {
-        return Ok(Json(json!({ "success": false, "error": "API Key 不能为空" })));
-    }
+    let api_key = body["apiKey"].as_str().unwrap_or("");
     let api_url = body["apiUrl"].as_str().unwrap_or("https://api.openai.com/v1");
     let model = body["model"].as_str().unwrap_or("gpt-4.1-nano");
 
@@ -2120,7 +2078,6 @@ pub struct StatusResponse {
     pub version: String,
     pub db_path: String,
     pub card_count: i64,
-    pub has_api_key: bool,
 }
 
 #[tauri::command]
@@ -2133,30 +2090,12 @@ async fn get_status(app: AppHandle) -> Result<StatusResponse, String> {
     .await
     .map_err(|e| e.to_string())?;
 
-    let has_api_key: Option<String> = sqlx::query_scalar(
-        "SELECT value FROM settings WHERE key = 'apiKey' AND value != '' LIMIT 1",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| e.to_string())?;
-
     Ok(StatusResponse {
         success: true,
         version: env!("CARGO_PKG_VERSION").to_string(),
         db_path: format!("sqlite:{}", state.db_path),
         card_count,
-        has_api_key: has_api_key.is_some(),
     })
-}
-
-#[tauri::command]
-async fn open_url(url: String) -> Result<serde_json::Value, String> {
-    if url.trim().is_empty() {
-        return Err("url is required".to_string());
-    }
-    open::that(&url)
-        .map(|_| serde_json::json!({ "success": true }))
-        .map_err(|e| format!("failed to open url: {}", e))
 }
 
 // ============================================================
@@ -2326,61 +2265,6 @@ fn intent_by_key(key: &str) -> IntentInfo {
     IntentInfo { zh: "其他", dir: "other" }
 }
 
-fn embedded_prompt(prompt_dir: &str) -> Option<&'static str> {
-    match prompt_dir {
-        "brainstorm" => Some(include_str!("../prompts/brainstorm/prompt.md")),
-        "classifier" => Some(include_str!("../prompts/classifier/prompt.md")),
-        "concept-exploration" => Some(include_str!("../prompts/concept-exploration/prompt.md")),
-        "content-creation" => Some(include_str!("../prompts/content-creation/prompt.md")),
-        "fact-query" => Some(include_str!("../prompts/fact-query/prompt.md")),
-        "how-to" => Some(include_str!("../prompts/how-to/prompt.md")),
-        "interactive-companion" => Some(include_str!("../prompts/interactive-companion/prompt.md")),
-        "other" => Some(include_str!("../prompts/other/prompt.md")),
-        "planning-decision" => Some(include_str!("../prompts/planning-decision/prompt.md")),
-        "skill-learning" => Some(include_str!("../prompts/skill-learning/prompt.md")),
-        "text-processing" => Some(include_str!("../prompts/text-processing/prompt.md")),
-        "topic-split" => Some(include_str!("../prompts/topic-split/prompt.md")),
-        _ => None,
-    }
-}
-
-fn read_prompt(prompt_dir: &str, label: &str) -> Result<String, String> {
-    let prompt_path = prompts_dir().join(prompt_dir).join("prompt.md");
-    match std::fs::read_to_string(&prompt_path) {
-        Ok(prompt) => Ok(prompt),
-        Err(e) => {
-            if let Some(prompt) = embedded_prompt(prompt_dir) {
-                tracing::warn!(
-                    "Prompt file not found at {}, using embedded fallback: {}",
-                    prompt_path.display(),
-                    e
-                );
-                Ok(prompt.to_string())
-            } else {
-                Err(format!("读取 {} prompt 失败: {}", label, e))
-            }
-        }
-    }
-}
-
-fn fallback_original_question(messages: &[Message]) -> String {
-    let mut question = messages
-        .iter()
-        .find(|m| m.role == "user" && !m.content.trim().is_empty())
-        .map(|m| sanitize_content(&m.content))
-        .unwrap_or_default();
-
-    if question.is_empty() {
-        return "未识别到用户问题".to_string();
-    }
-
-    const MAX_CHARS: usize = 220;
-    if question.chars().count() > MAX_CHARS {
-        question = format!("{}…", question.chars().take(MAX_CHARS).collect::<String>());
-    }
-    question
-}
-
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct TopicBlock {
@@ -2416,7 +2300,9 @@ async fn split_topics(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let prompt_raw = read_prompt("topic-split", "话题切分")?;
+    let prompt_path = prompts_dir().join("topic-split").join("prompt.md");
+    let prompt_raw = std::fs::read_to_string(&prompt_path)
+        .map_err(|e| format!("读取话题切分 prompt 失败: {}", e))?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let final_prompt = if system_prompt.contains("{{conversation}}") {
@@ -2562,7 +2448,9 @@ async fn classify_intent(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let prompt_raw = read_prompt("classifier", "意图分类")?;
+    let prompt_path = prompts_dir().join("classifier").join("prompt.md");
+    let prompt_raw = std::fs::read_to_string(&prompt_path)
+        .map_err(|e| format!("读取意图分类 prompt 失败: {}", e))?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let response = call_openai_compat(api_key, api_url, model, &system_prompt,
@@ -2597,7 +2485,9 @@ async fn generate_card(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let prompt_raw = read_prompt(intent_dir, intent_dir)?;
+    let prompt_path = prompts_dir().join(intent_dir).join("prompt.md");
+    let prompt_raw = std::fs::read_to_string(&prompt_path)
+        .map_err(|e| format!("读取 {} prompt 失败: {}", intent_dir, e))?;
     let system_prompt = extract_prompt_block(&prompt_raw);
 
     let final_prompt = system_prompt.replace("{{conversation}}", &conversation_text);
@@ -2641,9 +2531,6 @@ async fn generate_card(
 
     if card.narrative.is_empty() && card.full_output.is_some() {
         card.narrative = card.full_output.as_ref().unwrap().clone();
-    }
-    if card.original_question.trim().is_empty() {
-        card.original_question = fallback_original_question(block_messages);
     }
 
     Ok(card)
@@ -2793,7 +2680,7 @@ async fn run_ai_pipeline(
                 cards.push(PipelineCardResult {
                     title: if block.topic_hint.is_empty() { "对话片段".to_string() } else { block.topic_hint.clone() },
                     card_type: "其他".to_string(),
-                    original_question: fallback_original_question(block_messages),
+                    original_question: String::new(),
                     narrative: format!("AI 卡片生成失败: {}。以下是原始对话记录：\n\n{}", e, raw_preview),
                     tags: vec![platform.to_string()],
                     full_output: None,
@@ -2822,7 +2709,7 @@ fn frontend_dist_dir() -> Option<std::path::PathBuf> {
 
     let mut current = exe_dir;
     for _ in 0..10 {
-        let candidate = current.join("app").join("web").join("dist");
+        let candidate = current.join("demo").join("web").join("dist");
         if candidate.exists() {
             return Some(candidate);
         }
@@ -3207,6 +3094,14 @@ fn main() {
                 start_http_server(pool).await;
             });
 
+            // Set window icon (taskbar/title bar)
+            let icon = tauri::image::Image::from_bytes(
+                include_bytes!("../icons/128x128@2x.png")
+            ).expect("Failed to load app icon");
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(icon).expect("Failed to set window icon");
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -3223,7 +3118,6 @@ fn main() {
             validate_settings,
             get_status,
             summarize_card,
-            open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

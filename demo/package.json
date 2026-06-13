@@ -1,0 +1,19 @@
+{
+  "name": "llm-knowledge-base-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LLM 对话自动沉淀知识库 - Demo",
+  "scripts": {
+    "server": "node server/index.js",
+    "dev": "cd web && npm run dev",
+    "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
+    "install:all": "npm install && cd web && npm install"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
