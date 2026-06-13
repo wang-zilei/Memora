@@ -1,7 +1,20 @@
+import appLogo from './assets/newlogo-cropped.svg';
+
 // Memora 品牌 Logo 组件
 
 // 折叠抽象图形图标
 export function LogoIcon({ className }: { className?: string }) {
+  return (
+    <img
+      className={className}
+      src={appLogo}
+      alt="Memora"
+      draggable={false}
+    />
+  );
+}
+
+function LegacyLogoIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}

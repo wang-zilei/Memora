@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Memora Ins Minimal Prototype - Extension</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="prototype-page">
+    <div class="caption">Prototype 03 / Browser Extension / Floating Capture + Popup</div>
+    <section class="extension-board">
+      <div class="browser-shell">
+        <div class="browser-top">
+          <span class="window-dot"></span>
+          <span class="window-dot"></span>
+          <span class="window-dot"></span>
+          <div class="url-bar">chat.openai.com / conversation</div>
+        </div>
+        <div class="chat-mock">
+          <div class="chat-line user">我想把这个项目的 UI 改成更简洁高级的风格，功能逻辑不要变。</div>
+          <div class="chat-line ai">可以。建议先锁定视觉系统，再拆客户端和插件两个触点分别施工。</div>
+          <div class="chat-line user">插件这边希望别像工具按钮，最好像轻量收藏动作。</div>
+          <div class="chat-line ai">那悬浮球可以改成柔和的圆角方块，状态提示使用短 tooltip，而不是强渐变按钮。</div>
+        </div>
+      </div>
+
+      <div class="popup-card">
+        <div class="popup-head">
+          <div>
+            <div class="popup-title">Memora</div>
+            <div class="brand-subtitle">capture quietly</div>
+          </div>
+          <div class="status-pill">已连接</div>
+        </div>
+        <div class="popup-status">
+          客户端正在运行，API Key 已配置。当前页面支持一键沉淀，保存后会自动生成知识卡片。
+        </div>
+        <div class="popup-steps">
+          <div class="popup-step"><span class="step-dot">1</span><span>完成一次 LLM 对话</span></div>
+          <div class="popup-step"><span class="step-dot">2</span><span>点击右下角 Memora 浮层</span></div>
+          <div class="popup-step"><span class="step-dot">3</span><span>回到客户端复盘卡片</span></div>
+        </div>
+        <div class="popup-button">重新检查连接</div>
+      </div>
+
+      <div class="float-widget">
+        <div class="float-tooltip">保存这段对话到 Memora</div>
+        <div class="float-ball">✦</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

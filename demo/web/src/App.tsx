@@ -17,7 +17,7 @@ import trashIcon from './assets/delete.svg'
 
 type Page = 'list' | 'detail' | 'settings' | 'favorites' | 'statistics'
 
-const CARD_LIST_PAGE_SIZE = 9
+const CARD_LIST_BATCH_SIZE = 9
 
 /** 质检清洗：移除 markdown 格式标识和转义字符（前端兜底） */
 function sanitizeContent(text: string): string {
@@ -257,52 +257,78 @@ function App() {
   const [searchKeyword, setSearchKeyword] = useState('')
   const [cards, setCards] = useState<KnowledgeCardSummary[]>([])
   const [totalCards, setTotalCards] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [cardListPage, setCardListPage] = useState(1)
   const [refreshingCards, setRefreshingCards] = useState(false)
+  const [loadingMoreCards, setLoadingMoreCards] = useState(false)
+  const cardListAppendLoadingRef = useRef(false)
+  const cardListRequestSeq = useRef(0)
 
   // 加载卡片列表
-  const loadCards = async (pageOverride: number = currentPage, options: { silent?: boolean } = {}) => {
-    if (!options.silent) setRefreshingCards(true)
+  const loadCards = async (pageOverride: number = 1, options: { silent?: boolean; append?: boolean } = {}) => {
+    const isAppend = options.append === true
+    if (isAppend && cardListAppendLoadingRef.current) return
+    if (isAppend) cardListAppendLoadingRef.current = true
+    const requestSeq = ++cardListRequestSeq.current
+    if (isAppend) {
+      setLoadingMoreCards(true)
+    } else if (!options.silent) {
+      setRefreshingCards(true)
+    }
     try {
-      const params: Record<string, string> = { page: String(pageOverride), pageSize: String(CARD_LIST_PAGE_SIZE) }
+      const params: Record<string, string> = { page: String(pageOverride), pageSize: String(CARD_LIST_BATCH_SIZE) }
       if (currentCardType !== '全部') params.card_type = currentCardType
       if (currentTag) params.tag = currentTag
       if (searchKeyword) params.keyword = searchKeyword
       const data: CardListResponse = await getCards(params)
-      setCards(data.cards)
+      if (requestSeq !== cardListRequestSeq.current) return
+      setCards(prev => {
+        if (!isAppend) return data.cards
+        const existingIds = new Set(prev.map(card => card.id))
+        return [...prev, ...data.cards.filter(card => !existingIds.has(card.id))]
+      })
       setTotalCards(data.total)
+      setCardListPage(data.page || pageOverride)
     } catch (e) {
       console.error('Failed to load cards:', e)
     } finally {
-      if (!options.silent) setRefreshingCards(false)
+      if (isAppend) {
+        cardListAppendLoadingRef.current = false
+        setLoadingMoreCards(false)
+      } else if (!options.silent) {
+        setRefreshingCards(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadCards(currentPage, { silent: true })
-  }, [currentCardType, currentTag, currentPage])
+    setCardListPage(1)
+    loadCards(1, { silent: true })
+  }, [currentCardType, currentTag])
 
   useEffect(() => {
     if (page !== 'list') return
     const timer = window.setInterval(() => {
-      if (!document.hidden) {
-        loadCards(currentPage, { silent: true })
+      if (!document.hidden && cardListPage === 1) {
+        loadCards(1, { silent: true })
       }
     }, 6000)
     return () => window.clearInterval(timer)
-  }, [page, currentPage, currentCardType, currentTag, searchKeyword])
+  }, [page, cardListPage, currentCardType, currentTag, searchKeyword])
 
   const handleSearch = () => {
-    setCurrentPage(1)
+    setCardListPage(1)
     loadCards(1)
   }
 
   const handleRefreshCards = () => {
-    if (currentPage !== 1) {
-      setCurrentPage(1)
-    }
+    setCardListPage(1)
     loadCards(1)
   }
+
+  const handleLoadMoreCards = useCallback(() => {
+    if (refreshingCards || loadingMoreCards || cards.length >= totalCards) return
+    loadCards(cardListPage + 1, { silent: true, append: true })
+  }, [cardListPage, cards.length, loadingMoreCards, refreshingCards, searchKeyword, totalCards, currentCardType, currentTag])
 
   const handleCardClick = (id: string) => {
     setSelectedCardId(id)
@@ -312,7 +338,7 @@ function App() {
   const handleBack = () => {
     setPage('list')
     setSelectedCardId(null)
-    loadCards()
+    loadCards(1, { silent: true })
   }
 
   const handleNavigate = (p: Page) => {
@@ -327,26 +353,25 @@ function App() {
         onNavigate={handleNavigate}
         currentCardType={currentCardType}
         currentTag={currentTag}
-        onCardTypeChange={(type) => { setCurrentCardType(type); setCurrentPage(1); }}
-        onTagChange={(tag) => { setCurrentTag(tag); setCurrentCardType('全部'); setCurrentPage(1); }}
+        onCardTypeChange={(type) => { setCurrentCardType(type); setCardListPage(1); }}
+        onTagChange={(tag) => { setCurrentTag(tag); setCurrentCardType('全部'); setCardListPage(1); }}
       />
 
       <div className="main-content">
         {page === 'list' && (
           <CardList
             cards={cards}
-            totalCards={totalCards}
-            currentPage={currentPage}
             searchKeyword={searchKeyword}
             onSearchChange={setSearchKeyword}
             onSearch={handleSearch}
             onRefresh={handleRefreshCards}
             refreshing={refreshingCards}
-            onPageChange={setCurrentPage}
+            hasMoreCards={cards.length < totalCards}
+            loadingMore={loadingMoreCards}
+            onLoadMore={handleLoadMoreCards}
             onTotalCardsChange={setTotalCards}
             onOpenSettings={() => setPage('settings')}
             onCardClick={handleCardClick}
-            currentCardType={currentCardType}
             currentTag={currentTag}
             onTagClear={() => { setCurrentTag(''); }}
           />
@@ -470,24 +495,23 @@ function Sidebar({ currentPage, onNavigate, currentCardType, currentTag, onCardT
 
 // ============ 卡片列表组件 ============
 
-function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, onPageChange, onTotalCardsChange, onOpenSettings, onCardClick, currentCardType, currentTag, onTagClear }: {
+function CardList({ cards, searchKeyword, onSearchChange, onSearch, onRefresh, refreshing, hasMoreCards, loadingMore, onLoadMore, onTotalCardsChange, onOpenSettings, onCardClick, currentTag, onTagClear }: {
   cards: KnowledgeCardSummary[]
-  totalCards: number
-  currentPage: number
   searchKeyword: string
   onSearchChange: (kw: string) => void
   onSearch: () => void
   onRefresh: () => void
   refreshing: boolean
-  onPageChange: (page: number) => void
+  hasMoreCards: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
   onTotalCardsChange: (update: (prev: number) => number) => void
   onOpenSettings: () => void
   onCardClick: (id: string) => void
-  currentCardType: string
   currentTag: string
   onTagClear: () => void
 }) {
-  const totalPages = Math.ceil(totalCards / CARD_LIST_PAGE_SIZE)
+  const gridRef = useRef<HTMLDivElement>(null)
   const [menuCardId, setMenuCardId] = useState<string | null>(null)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   // 本地覆盖状态：避免触发 App 重渲染导致 CardList 被销毁 remount
@@ -506,6 +530,19 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
     starOverrides[c.id] !== undefined ? starOverrides[c.id] : c.starred
 
   const visibleCards = cards.filter(c => !hiddenIds.has(c.id))
+
+  const handleGridScroll = () => {
+    const grid = gridRef.current
+    if (!grid || !hasMoreCards || loadingMore) return
+    const remaining = grid.scrollHeight - grid.scrollTop - grid.clientHeight
+    if (remaining < 140) onLoadMore()
+  }
+
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid || !hasMoreCards || loadingMore || visibleCards.length === 0) return
+    if (grid.scrollHeight <= grid.clientHeight + 8) onLoadMore()
+  }, [hasMoreCards, loadingMore, onLoadMore, visibleCards.length])
 
   const handleToggleStar = (cardId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -617,8 +654,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
           </p>
         </div>
       ) : (
-        <>
-          <div className="cards-grid">
+        <div className="cards-grid" ref={gridRef} onScroll={handleGridScroll}>
             {visibleCards.map(card => (
               <div
                 key={card.id}
@@ -685,29 +721,7 @@ function CardList({ cards, totalCards, currentPage, searchKeyword, onSearchChang
                 </div>
               </div>
             ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button
-                disabled={currentPage <= 1}
-                title="上一页"
-                aria-label="上一页"
-                onClick={() => onPageChange(currentPage - 1)}
-              >
-                <UiIcon name="chevron_left" />
-              </button>
-              <button
-                disabled={currentPage >= totalPages}
-                title="下一页"
-                aria-label="下一页"
-                onClick={() => onPageChange(currentPage + 1)}
-              >
-                <UiIcon name="chevron_right" />
-              </button>
-            </div>
-          )}
-        </>
+        </div>
       )}
       {deleteTargetId && (
         <ConfirmModal

@@ -10,10 +10,15 @@ LLM 对话自动沉淀知识库工具。详见 [docs/PRD-v1.md](docs/PRD-v1.md)
 
 | 文档 | 用途 |
 |------|------|
-| [Guidance/PROGRESS.md](Guidance/PROGRESS.md) | 任务阶段进度 |
-| [Guidance/bug-log.md](Guidance/bug-log.md) | Bug 记录与根因分析 |
-| [Guidance/architecture.md](Guidance/architecture.md) | 工作区文件层级说明 |
-| [Guidance/project-log.md](Guidance/project-log.md) | 会话总结记录 |
+| [Guidance/status.md](Guidance/status.md) | 项目当前状态（阶段/进行中/待解决） |
+| [Guidance/summary.md](Guidance/summary.md) | 项目简报（给人看的 5 分钟概览） |
+| [Guidance/architecture/overview.md](Guidance/architecture/overview.md) | 工作区文件层级 + 技术栈 + 架构图 |
+| [Guidance/architecture/changelog.md](Guidance/architecture/changelog.md) | 架构变更历史 |
+| [Guidance/knowledge/index.md](Guidance/knowledge/index.md) | Bug 修复记录 + 可复用范式索引 |
+| [Guidance/logs/index.md](Guidance/logs/index.md) | 每日会话日志索引 |
+| [Guidance/CHANGELOG.md](Guidance/CHANGELOG.md) | Guidance 自身结构变更记录 |
+| [Guidance/UI-REDESIGN-GUARDRAILS.md](Guidance/UI-REDESIGN-GUARDRAILS.md) | UI 重设计护栏规则 |
+| [Guidance/RELEASE-DISTRIBUTION.md](Guidance/RELEASE-DISTRIBUTION.md) | Release 分发结构约定 |
 
 ### docs/（产品与技术文档）
 
@@ -35,10 +40,6 @@ LLM 对话自动沉淀知识库工具。详见 [docs/PRD-v1.md](docs/PRD-v1.md)
 
 任何关键文档（PRD、架构定义、数据模型）或代码（目录结构、接口定义、类型定义）的结构性变更，须在 [Guidance/PROGRESS.md](Guidance/PROGRESS.md) 中追加记录，说明变更内容与原因。
 
-### 3. 参考项目隔离
-
-`ctxport/`、`chat-export/`、`gemini-voyager/` 是独立参考项目，各有 `.git`，修改时注意作用域，不可越界改动。
-
-### 4. 中文沟通
+### 3. 中文沟通
 
 使用中文，技术术语保留英文。

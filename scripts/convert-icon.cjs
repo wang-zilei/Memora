@@ -1,98 +1,80 @@
-// SVG -> Tauri icon set (PNG + ICO)
+// PNG -> app icon set (PNG + ICO)
 // Usage: node scripts/convert-icon.cjs
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
-const SRC = path.resolve(__dirname, '..', 'assets', 'logo.svg');
-const OUT = path.resolve(__dirname, '..', 'src-tauri', 'icons');
+const SRC = path.resolve(__dirname, '..', 'assets', 'newlogo-cropped.svg');
+const ASSET_OUT = path.resolve(__dirname, '..', 'assets', 'icons');
+const TAURI_OUT = path.resolve(__dirname, '..', 'src-tauri', 'icons');
 
-const SOURCE_SVG = fs.readFileSync(SRC, 'utf8');
-const ICON_FILL_RATIO = 0.93;
-const ICON_VIEWBOX = { x: 120, y: 105, size: 1360 };
-
-const sizes = [
+const assetSizes = [32, 64, 128, 256, 512, 1024];
+const tauriPngs = [
   { name: '32x32.png', size: 32 },
+  { name: '64x64.png', size: 64 },
   { name: '128x128.png', size: 128 },
   { name: '128x128@2x.png', size: 256 },
 ];
 
-// Ensure output dir
-if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
-
 async function main() {
-  for (const { name, size } of sizes) {
-    const buf = await renderIconPng(size);
-    const outPath = path.join(OUT, name);
+  ensureDir(ASSET_OUT);
+  ensureDir(TAURI_OUT);
+
+  for (const size of assetSizes) {
+    const buf = await renderPng(size);
+    const outPath = path.join(ASSET_OUT, `app-icon-${size}.png`);
     fs.writeFileSync(outPath, buf);
-    console.log(`  ${name} (${buf.length} bytes)`);
+    console.log(`  assets/icons/app-icon-${size}.png (${buf.length} bytes)`);
   }
 
-  const icoEntries = await Promise.all([32, 128, 256].map(async size => ({
+  for (const { name, size } of tauriPngs) {
+    const buf = await renderPng(size);
+    const outPath = path.join(TAURI_OUT, name);
+    fs.writeFileSync(outPath, buf);
+    console.log(`  src-tauri/icons/${name} (${buf.length} bytes)`);
+  }
+
+  const icoEntries = await Promise.all([16, 24, 32, 48, 64, 96, 128, 256].map(async size => ({
     width: size,
     height: size,
-    buffer: await renderIconPng(size),
+    buffer: await renderPng(size),
   })));
   const ico = createIco(icoEntries);
-  const icoPath = path.join(OUT, 'icon.ico');
-  fs.writeFileSync(icoPath, ico);
+  fs.writeFileSync(path.join(ASSET_OUT, 'app-icon.ico'), ico);
+  fs.writeFileSync(path.join(TAURI_OUT, 'icon.ico'), ico);
   console.log(`  icon.ico (${ico.length} bytes)`);
 
-  // ICNS placeholder — Tauri 4.x only uses it on macOS, we copy the 128px PNG
-  // Tauri actually bundles from PNGs, so ICNS/ICO are just formalities
-  const icnsPath = path.join(OUT, 'icon.icns');
-  const png128 = await renderIconPng(128);
-  fs.writeFileSync(icnsPath, png128); // macOS accepts PNG-based icns in practice
-  console.log(`  icon.icns (${png128.length} bytes, PNG fallback)`);
+  const png512 = await renderPng(512);
+  fs.writeFileSync(path.join(TAURI_OUT, 'icon.icns'), png512);
+  console.log(`  src-tauri/icons/icon.icns (${png512.length} bytes, PNG fallback)`);
 
-  console.log('\nDone. Icons written to src-tauri/icons/');
+  console.log('\nDone. Icons written to assets/icons/ and src-tauri/icons/.');
 }
 
-async function renderIconPng(size) {
-  const contentSize = Math.round(size * ICON_FILL_RATIO);
-  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
-  const iconSvg = makeIconSvg();
-  const content = await sharp(Buffer.from(iconSvg))
-    .resize(contentSize, contentSize, { fit: 'contain' })
-    .png()
-    .toBuffer();
-
-  const meta = await sharp(content).metadata();
-  const left = Math.floor((size - meta.width) / 2);
-  const top = Math.floor((size - meta.height) / 2);
-
-  return sharp({
-    create: {
-      width: size,
-      height: size,
-      channels: 4,
-      background: transparent,
-    },
-  })
-    .composite([{ input: content, left, top }])
+async function renderPng(size) {
+  const radius = Math.round(size * 0.178);
+  const mask = Buffer.from(
+    `<svg width="${size}" height="${size}">
+      <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="black"/>
+    </svg>`
+  );
+  return sharp(SRC)
+    .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .flatten({ background: '#ffffff' })
+    .composite([{ input: mask, blend: 'dest-in' }])
     .png()
     .toBuffer();
 }
 
-function makeIconSvg() {
-  const iconBody = SOURCE_SVG
-    .replace(/<\?xml[^?]*\?>\s*/g, '')
-    .replace(/<svg[^>]*>/, '')
-    .replace(/<\/svg>\s*$/, '')
-    .replace(/\sfilter="url\(#logoShadow\)"/g, '');
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="${ICON_VIEWBOX.x} ${ICON_VIEWBOX.y} ${ICON_VIEWBOX.size} ${ICON_VIEWBOX.size}">
-  <rect x="${ICON_VIEWBOX.x}" y="${ICON_VIEWBOX.y}" width="${ICON_VIEWBOX.size}" height="${ICON_VIEWBOX.size}" fill="transparent"/>
-${iconBody}
-</svg>`;
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function createIco(entries) {
-  // ICO = 6-byte header + 16-byte dir entries + image data
   const header = Buffer.alloc(6);
-  header.writeUInt16LE(0, 0);   // reserved
-  header.writeUInt16LE(1, 2);   // ICO type
-  header.writeUInt16LE(entries.length, 4); // count
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(entries.length, 4);
 
   const dirSize = 16;
   const headerSize = 6;
@@ -104,12 +86,12 @@ function createIco(entries) {
     const dir = Buffer.alloc(16);
     dir.writeUInt8(e.width === 256 ? 0 : e.width, 0);
     dir.writeUInt8(e.height === 256 ? 0 : e.height, 1);
-    dir.writeUInt8(0, 2);      // palette
-    dir.writeUInt8(0, 3);      // reserved
-    dir.writeUInt16LE(1, 4);   // color planes
-    dir.writeUInt16LE(32, 6);  // bpp
-    dir.writeUInt32LE(e.buffer.length, 8);  // size
-    dir.writeUInt32LE(dataOffset, 12);      // offset
+    dir.writeUInt8(0, 2);
+    dir.writeUInt8(0, 3);
+    dir.writeUInt16LE(1, 4);
+    dir.writeUInt16LE(32, 6);
+    dir.writeUInt32LE(e.buffer.length, 8);
+    dir.writeUInt32LE(dataOffset, 12);
     dirs.push(dir);
     datas.push(e.buffer);
     dataOffset += e.buffer.length;
@@ -118,4 +100,7 @@ function createIco(entries) {
   return Buffer.concat([header, ...dirs, ...datas]);
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

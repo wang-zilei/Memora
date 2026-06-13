@@ -3094,6 +3094,14 @@ fn main() {
                 start_http_server(pool).await;
             });
 
+            // Set window icon (taskbar/title bar)
+            let icon = tauri::image::Image::from_bytes(
+                include_bytes!("../icons/128x128@2x.png")
+            ).expect("Failed to load app icon");
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_icon(icon).expect("Failed to set window icon");
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
